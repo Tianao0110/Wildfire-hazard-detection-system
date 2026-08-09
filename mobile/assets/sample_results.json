@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "run_id": "console_20260727_180127",
+  "results_only": true,
+  "source": {
+    "machine": "EDEN-LAPTOP",
+    "device": "cuda:0 (RTX 4090)",
+    "operator": "Field Team A",
+    "generated_at": "2026-07-27T18:01:27"
+  },
+  "uploaded_at": "2026-07-27T18:45:00",
+  "stats": {
+    "total_images": 3,
+    "flagged_images": 3,
+    "detections_by_class": { "Dead Tree": 41, "Flame": 2, "Smoke": 1 }
+  },
+  "batch_info": {
+    "results_only": true,
+    "operator": "Field Team A",
+    "generated_at": "2026-07-27T18:01:27"
+  },
+  "images": [
+    {
+      "path": "DJI_0042.JPG",
+      "name": "DJI_0042.JPG",
+      "width": 5280,
+      "height": 3956,
+      "gps": [56.58710, -114.60008],
+      "altitude": 118.4,
+      "timestamp": "2026:07:27 17:22:10",
+      "camera": "DJI Zenmuse L2",
+      "flagged": true,
+      "detections": [
+        { "cls_name": "fire", "display": "Flame", "score": 0.91, "xyxy": [2410.0, 1180.5, 2588.2, 1420.0] },
+        { "cls_name": "fire", "display": "Flame", "score": 0.84, "xyxy": [2650.1, 1245.0, 2790.6, 1398.2] },
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.78, "xyxy": [880.0, 2210.0, 1015.5, 2604.8] },
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.74, "xyxy": [1420.3, 1980.0, 1544.0, 2377.5] }
+      ],
+      "error": null
+    },
+    {
+      "path": "DJI_0057.JPG",
+      "name": "DJI_0057.JPG",
+      "width": 5280,
+      "height": 3956,
+      "gps": [56.58962, -114.59544],
+      "altitude": 121.0,
+      "timestamp": "2026:07:27 17:26:44",
+      "camera": "DJI Zenmuse L2",
+      "flagged": true,
+      "detections": [
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.88, "xyxy": [310.0, 402.2, 460.9, 815.0] },
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.81, "xyxy": [1911.4, 977.0, 2050.2, 1391.6] },
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.66, "xyxy": [3300.0, 1500.8, 3419.5, 1874.0] },
+        { "cls_name": "smoke", "display": "Smoke", "score": 0.59, "xyxy": [4020.0, 300.0, 4630.7, 780.4] }
+      ],
+      "error": null
+    },
+    {
+      "path": "DJI_0063.JPG",
+      "name": "DJI_0063.JPG",
+      "width": 5280,
+      "height": 3956,
+      "gps": [56.58455, -114.59230],
+      "altitude": 119.7,
+      "timestamp": "2026:07:27 17:31:02",
+      "camera": "DJI Zenmuse L2",
+      "flagged": true,
+      "detections": [
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.93, "xyxy": [2100.0, 1800.0, 2260.3, 2350.0] },
+        { "cls_name": "dead_tree", "display": "Dead Tree", "score": 0.71, "xyxy": [2500.5, 1650.4, 2633.0, 2088.9] }
+      ],
+      "error": null
+    }
+  ],
+  "labels": [
+    { "image": "DJI_0042.JPG", "xyxy": [2410.0, 1180.5, 2588.2, 1420.0], "class": "Flame" },
+    { "image": "DJI_0042.JPG", "xyxy": [880.0, 2210.0, 1015.5, 2604.8], "class": "Dead Tree" }
+  ],
+  "reviewed_images": ["DJI_0042.JPG"]
+}
