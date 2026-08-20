@@ -537,6 +537,32 @@ Repo rule: commits carry no AI signature lines.
       the old code, and the two-stage output was diffed box-for-box and
       score-for-score against the one-call path
 
+## Batch 27 - detect at the scale the model was trained on (2026-08-20)
+
+- [x] **GSD is computed from EXIF** (`gps.ground_sample_distance_cm`), using the
+      35mm-equivalent focal length so it needs no per-camera sensor table, and
+      DJI's `RelativeAltitude` rather than GPS altitude - the latter reads 1354 m
+      over Canmore, which is the valley floor, not the 53 m the drone was flying
+- [x] **DeepForest now sees frames at roughly the scale it was trained on.**
+      NEON is ~10 cm/px; the L2 at 53 m gives 1.4 cm/px. At 7x too fine the model
+      called branches, shrubs and dead grass "crowns": 70 detections on one frame
+      with a MEDIAN width of **0.9 m of ground**, boxes on shadow and bare earth.
+      Resampled to 4 cm/px the same frame gives 14 detections at 1.7 m median,
+      the ground false positives are gone, and it runs in **5.3 s instead of
+      28.4 s**. `df_target_gsd_cm` (0 disables); frames whose EXIF cannot give a
+      GSD are left at native scale rather than guessed at
+- [x] **Recall is NOT fixed by this and should not be claimed as fixed.** The
+      frame still holds many obvious grey snags that go undetected. Precision and
+      speed improved; recall is limited by what a crown detector plus an
+      alive/dead crown classifier can express
+- [x] **Measured what the detectors cannot do**, so the manual can say it:
+      a snag that has lost its crown and any fallen tree are invisible (no crown
+      to detect - and downed wood is fuel); the box covers the crown, not the
+      tree, because the photo is nadir and the trunk is under its own crown; and
+      the flame/smoke model fired on **13 of 30 fire-free frames** (17 false
+      flames, scores 0.30-0.61, none above 0.70)
+- [x] Suite **159 -> 168** tests
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

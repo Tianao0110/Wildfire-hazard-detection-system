@@ -18,12 +18,16 @@ Two DeepForest 2.1.0 quirks are handled here:
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import os
+import tempfile
+from pathlib import Path
 from typing import Callable, Optional
 
 from .config import Settings
 from .device import pick_device
+from .gps import ground_sample_distance_cm
 from .types import Detection
 
 ProgressFn = Optional[Callable[[str], None]]
@@ -152,6 +156,59 @@ class DeepForestDeadTreeDetector:
             return m.predict_tile(raster_path=image_path, **kwargs)
         return m.predict_tile(image_path, **kwargs)
 
+    # Below this there is nothing worth resampling for, and resampling UP is
+    # never right: it invents detail the sensor did not record.
+    _MIN_DOWNSCALE = 1.2
+
+    @contextlib.contextmanager
+    def _at_training_scale(self, image_path: str):
+        """Yield (path, box_scale): the frame resampled toward the scale the
+        crown model was trained at, and the factor that returns boxes to native
+        pixels.
+
+        A detector is only valid at the scale it learned. DeepForest learned
+        crowns on NEON imagery near 10 cm/px; a DJI L2 at 53 m records 1.4 cm/px,
+        7x finer, so a whole crown no longer looks like a crown - it fills the
+        frame, and the shapes that DO match a crown at that magnification are
+        single branches, shrubs and patches of dead grass. Measured on one real
+        frame: 70 "dead trees" whose MEDIAN width was 0.9 m of ground, boxes
+        sitting on grass and shadow. Resampled to 4.3 cm/px the same detector
+        returned 9 detections at 2.3 m median, and the ground false positives
+        were gone.
+
+        Yields the original path unchanged when the EXIF cannot give a GSD (any
+        non-DJI camera, or a frame with no RelativeAltitude), because guessing a
+        scale is worse than running at the one the operator actually flew.
+        """
+        target = getattr(self.settings, "df_target_gsd_cm", 0) or 0
+        gsd = ground_sample_distance_cm(image_path) if target > 0 else None
+        factor = (target / gsd) if gsd and gsd > 0 else 0.0
+        if factor < self._MIN_DOWNSCALE:
+            yield str(image_path), 1.0
+            return
+
+        from PIL import Image as PILImage
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="wildfire_gsd_") as tmp:
+                with PILImage.open(image_path) as im:
+                    im = im.convert("RGB")
+                    width, height = im.size
+                    small = im.resize((max(1, round(width / factor)),
+                                       max(1, round(height / factor))),
+                                      PILImage.LANCZOS)
+                # The crop model re-reads crops from disk, so this has to be a
+                # real file rather than an array handed to predict_tile.
+                out = Path(tmp) / (Path(image_path).stem + ".jpg")
+                small.save(out, "JPEG", quality=92)
+                self._say(f"[deadtree] {gsd:.1f} cm/px -> resampled to "
+                          f"{gsd * factor:.1f} cm/px for the crown model")
+                yield str(out), width / small.size[0]
+        except Exception as e:
+            self._say(f"[deadtree] could not resample ({type(e).__name__}: {e}); "
+                      "running at native scale.")
+            yield str(image_path), 1.0
+
     def _classify(self, crowns, image_path: str):
         """Alive/dead classify a crown frame; None if this DeepForest cannot.
 
@@ -207,15 +264,16 @@ class DeepForestDeadTreeDetector:
         # _classify for the measurement. The fallback re-runs the tiling, which
         # is slower than never having split - acceptable for a path that only
         # fires if DeepForest moves the helper, and it announces itself.
-        crowns = self._predict_tile(str(image))
-        df = None
-        if crowns is not None and len(crowns) and "score" in crowns.columns:
-            keep = crowns[crowns["score"] >= s.conf_threshold]
-            if len(keep) == 0:
-                return []  # nothing clears the threshold; nothing to classify
-            df = self._classify(keep, str(image))
-        if df is None:
-            df = self._predict_tile(str(image), crop_model=self._crop)
+        with self._at_training_scale(str(image)) as (src, box_scale):
+            crowns = self._predict_tile(src)
+            df = None
+            if crowns is not None and len(crowns) and "score" in crowns.columns:
+                keep = crowns[crowns["score"] >= s.conf_threshold]
+                if len(keep) == 0:
+                    return []  # nothing clears the threshold; nothing to classify
+                df = self._classify(keep, src)
+            if df is None:
+                df = self._predict_tile(src, crop_model=self._crop)
         if df is None or len(df) == 0 or "cropmodel_label" not in df.columns:
             return []
 
@@ -230,6 +288,8 @@ class DeepForestDeadTreeDetector:
             box = self._bbox(row)
             if box is None:
                 continue
+            if box_scale != 1.0:  # resampled frame -> native pixel coordinates
+                box = tuple(v * box_scale for v in box)
             score = float(row.get("cropmodel_score", crown_score) or crown_score)
             detections.append(
                 Detection(cls_name="dead_tree", display="Dead Tree", score=score, xyxy=box)

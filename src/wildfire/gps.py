@@ -15,6 +15,10 @@ from typing import Optional
 
 from PIL import ExifTags, Image
 
+# DJI writes its XMP block near the head of the file; reading a bounded
+# prefix avoids pulling a 9 MB frame into memory for one attribute.
+_XMP_SCAN_BYTES = 128 * 1024
+
 
 def _ratio_to_float(x) -> float:
     """Coerce a Pillow IFDRational / (num, den) tuple / number to float."""
@@ -112,6 +116,64 @@ def extract_altitude(path: str | Path) -> Optional[float]:
     if gps.get(5) == 1:  # GPSAltitudeRef: 1 => below sea level
         alt = -alt
     return alt
+
+
+def relative_altitude(path: str | Path) -> Optional[float]:
+    """Height above the TAKEOFF POINT in meters, from the DJI XMP block.
+
+    Not the same thing as `extract_altitude`, which reports GPS altitude above
+    sea level - 1354 m over Canmore, where the drone was flying 53 m over the
+    trees. Scale depends on height above the canopy, so only this one is usable
+    for it. Non-DJI images have no such tag and return None.
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(_XMP_SCAN_BYTES)
+    except OSError:
+        return None
+    m = re.search(rb'RelativeAltitude="([+-]?[0-9.]+)"', head)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def ground_sample_distance_cm(path: str | Path) -> Optional[float]:
+    """Centimeters of ground per pixel, or None when the EXIF cannot say.
+
+    Detectors are trained at a scale, and a model shown imagery 7x finer than it
+    was trained on finds the wrong things: DeepForest at NEON's ~10 cm/px looks
+    for whole crowns, and on 1.4 cm/px drone frames the same shapes are single
+    branches. Knowing the real GSD is what lets a detector correct for that.
+
+        GSD = sensor_width * height / (focal_length * image_width)
+
+    and since 35mm-equivalent focal length is DEFINED by sensor_width/focal =
+    36mm/f35, this needs no per-camera sensor table:
+
+        GSD = (36 / f35) * height / image_width
+
+    Deliberately approximate. f35 is rounded in EXIF (24 here, giving 1.51 cm/px
+    against 1.42 from the L2's true 17.3 mm sensor), and it assumes level
+    ground. Both are far inside the tolerance for picking a scale factor.
+    """
+    height = relative_altitude(path)
+    if not height or height <= 0:
+        return None
+    try:
+        with Image.open(path) as img:
+            width = img.size[0]
+            f35 = img.getexif().get_ifd(ExifTags.IFD.Exif).get(41989)  # FocalLengthIn35mmFilm
+    except Exception:
+        return None
+    if not f35 or not width:
+        return None
+    f35 = _ratio_to_float(f35)
+    if f35 <= 0:
+        return None
+    return (36.0 / f35) * height / width * 100.0
 
 
 def extract_timestamp(path: str | Path) -> Optional[str]:

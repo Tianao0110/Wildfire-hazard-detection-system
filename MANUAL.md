@@ -171,3 +171,14 @@ Everything is local; nothing is uploaded anywhere.
 - Overlapping flight photos re-shoot the same trees; the map merges images
   within 40 m into one *site*, but raw detection counts still contain overlap.
   Full de-duplication (orthomosaic pipeline) is on the roadmap.
+- **Only standing trees with a crown are found.** The detector locates tree
+  crowns and then judges each one alive or dead, so a snag that has already lost
+  its crown, and any tree lying on the ground, are invisible to it — downed wood
+  is fuel, and this system does not map it.
+- **The box covers the crown, not the tree.** Photos are taken straight down, so
+  the trunk sits underneath its own crown and is not in the picture. A whole-tree
+  outline needs oblique photos or the LiDAR payload, not a better model.
+- **Flame and smoke are unreliable from the air.** On 30 fire-free frames from a
+  real flight the detector reported 17 flames, 13 of the 30 frames affected. Treat
+  a flame marker as "look at this photo", never as a fire alarm; the survey is a
+  fuel-mapping tool, not a fire-detection sensor.

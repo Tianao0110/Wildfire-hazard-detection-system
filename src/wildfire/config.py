@@ -126,6 +126,13 @@ class Settings:
     df_crown_model: str = "weecology/deepforest-tree"
     df_dead_model: str = "weecology/cropmodel-deadtrees"
     df_dead_label: str = "Dead"  # crop-model label to keep (alive/dead)
+    # Resample each frame toward this ground resolution before the crown model
+    # runs. DeepForest learned crowns on NEON imagery at roughly 10 cm/px; a
+    # DJI L2 at 53 m gives 1.4 cm/px, and at that magnification the model calls
+    # single branches and patches of dead grass "crowns" - 70 detections whose
+    # median width was 0.9 m of ground. 4 cm is a measured compromise: coarse
+    # enough to kill those, fine enough to keep small crowns. 0 disables.
+    df_target_gsd_cm: float = 4.0
 
     # --- console display severity (UI-only badge; no risk field in data/PDF) ---
     # Dead trees are the primary target, so severity = avg dead trees per image.

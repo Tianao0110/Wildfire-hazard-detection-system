@@ -319,6 +319,18 @@ outputs/<run>_<timestamp>/
     touch batch.json. `path` is the exception: it points at the operator's
     source photo outside the run folder and identifies the image across re-runs.
 
+13. **A detector is only valid at the scale it was trained on.** DeepForest
+    learned crowns on NEON imagery near 10 cm/px. A DJI L2 at 53 m records
+    1.4 cm/px - seven times finer - and at that magnification the shapes that
+    match "a crown" are branches, shrubs and dead grass: 70 detections on one
+    frame whose MEDIAN width was 0.9 m of ground, boxes on shadow and bare
+    earth. `deepforest_detector._at_training_scale` now resamples each frame
+    toward `df_target_gsd_cm` (default 4) using the GSD computed from EXIF, and
+    scales the boxes back. Before blaming a model for poor accuracy, compute
+    what one pixel is worth on the ground and compare it with the model's
+    training data. Do not remove this because "it throws away resolution" -
+    the resolution was making it worse, and measurably so.
+
 ---
 
 ## 8. Verification habits
@@ -337,7 +349,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 159 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 168 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the
