@@ -478,6 +478,32 @@ Repo rule: commits carry no AI signature lines.
       10 of them, and dropping the worker's `_write_progress` from its `except`
       fails 2
 
+## Batch 25 - repository hygiene (2026-08-19)
+
+- [x] **Removed `1.JPG`** - a 9.5 MB drone frame committed to the repository root
+      by an "Add files via upload", referenced by nothing. It stays in the pack
+      history; only a rewrite would reclaim the space, which is not worth
+      rewriting shared history for
+- [x] **`docker-compose.yml` moved to `mobile/` and labelled a sketch.** At the
+      root it read as "this project runs on Docker", which is the opposite of
+      hard rule 9. It also does not run: it builds from a `./backend` that does
+      not exist and points at an `ai-service:8001` the file never defines.
+      Deliberately NOT built out - nothing calls it. The desktop console has no
+      services by design and the phone reads Azure Blob directly, so writing
+      that backend would be starting a new subsystem, not finishing this one
+- [x] **The mobile SAS token left the source tree.** `sync.js` held a
+      `PASTE_YOUR_..._HERE` constant, which is an invitation to commit a
+      credential; it now reads `EXPO_PUBLIC_WILDFIRE_SAS_URL` from
+      `.env.local` (already gitignored) and fails with a sentence naming the
+      variable instead of a bare "Network request failed"
+- [x] **`mobile/README.md`**, the folder had none: what the app is and is not,
+      how to run it, how to configure the credential, and what the compose file
+      is. It also records a mismatch found while writing it - the header claimed
+      "Read + List only" but `uploadNotes` PUTs a blob, so field-note sync-back
+      needs Create + Write and returns 403 on a read-only token
+- [x] **The mobile app is now visible from the entry-point docs.** Neither
+      README.md nor AGENTS.md mentioned a whole subsystem living in the repo
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

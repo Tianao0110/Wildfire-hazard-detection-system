@@ -8,23 +8,43 @@
 //   4. UN-GZIP it (pako) and parse the JSON — the same schema cloud_sync.py writes
 //   5. CACHE it on the phone (AsyncStorage) so the app works offline afterwards
 //
-// The phone only ever READS. Use a SAS with Read + List only — never the
-// account key. Fill in SAS_BASE below on your machine; don't commit it.
+// Permissions, which are NOT uniform across this file: viewing a run needs
+// Read + List, but uploadNotes() PUTs field_notes.json back and so needs Create
+// + Write as well. A Read + List token makes every screen work and fails only
+// on note sync-back, with HTTP 403. Never the account key either way; the token
+// comes from the environment, not from this file.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import pako from "pako";
 
 // ── CONFIG ──────────────────────────────────────────────────────────
-// Paste your READ-ONLY Blob SAS URL for the container here. It looks like:
-//   https://wildfirereports.blob.core.windows.net/wildfire-runs?sv=...&sig=...
-// (The container URL with the ?sv=... token. Read + List permissions only.)
-const SAS_BASE = "PASTE_YOUR_READ_ONLY_SAS_URL_HERE";
+// The SAS URL is read from the environment rather than pasted in here: editing
+// a tracked source file to hold a credential is exactly how one ends up in a
+// commit. Put it in mobile/.env.local (gitignored), then restart Expo:
+//
+//   EXPO_PUBLIC_WILDFIRE_SAS_URL=https://<account>.blob.core.windows.net/wildfire-runs?sv=...&sig=...
+//
+// It is the CONTAINER url with its ?sv=... token, Read + List only. See README.
+//
+// EXPO_PUBLIC_ values are compiled into the app bundle. That is unavoidable for
+// any client-side SAS - the phone has to carry the token to read the container -
+// which is the whole reason it must be scoped to Read + List, never the account
+// key, and should be given an expiry.
+const SAS_BASE = (process.env.EXPO_PUBLIC_WILDFIRE_SAS_URL || "").trim();
 
 const CACHE_KEY = "wildfire.results.v1";
 const CACHE_META = "wildfire.results.meta.v1";
 
 // Split "https://host/container?sv=..." into base and query once.
+// Unconfigured fails HERE with a sentence you can act on, rather than later as
+// a bare "Network request failed" against the url "undefined".
 function parts() {
+  if (!isConfigured()) {
+    throw new Error(
+      "No Azure SAS URL configured. Add EXPO_PUBLIC_WILDFIRE_SAS_URL to " +
+        "mobile/.env.local and restart Expo - see mobile/README.md.",
+    );
+  }
   const [base, query] = SAS_BASE.split("?");
   return { base, query };
 }

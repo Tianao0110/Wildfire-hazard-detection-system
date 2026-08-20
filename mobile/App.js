@@ -221,7 +221,7 @@ export default function App() {
 
   async function onSync(runId = null) {
     if (!isConfigured()) {
-      setSyncState({ busy: false, msg: "Set the SAS URL in sync.js first" });
+      setSyncState({ busy: false, msg: "Set EXPO_PUBLIC_WILDFIRE_SAS_URL in .env.local" });
       return;
     }
     setSyncState({ busy: true, msg: "Syncing from Azure…" });

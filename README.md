@@ -239,10 +239,12 @@ src/wildfire/console/
                  server (FastAPI + JSON API), data (runs/severity/sites), ingest
                  (mission folder), jobs + worker (subprocess detection), tiles
                  (offline map download), desktop (native window), pages/ + static/
+mobile/          Expo field viewer for phones - reads the results this system
+                 uploads to Azure; runs no detection of its own (mobile/README.md)
 scripts/         run_detection, generate_report, download_model, export_labels,
                  upload_to_custom_vision, fetch_map_tiles, fetch_map_overlays,
                  install_desktop_app
-tests/           70 unit + integration tests
+tests/           150 unit + integration tests
 config/          settings.example.json (settings.json is created on first run)
 models/          detector weights (gitignored)
 map/             offline satellite tiles + overlays.geojson (gitignored)

@@ -136,6 +136,10 @@ src/wildfire/console/          <- the actual product UI
   static/console.css   design tokens in :root + components
   static/console.js    shared JS: nav, branding, map helpers
 
+mobile/           Expo field viewer (JS, separate stack). Reads the
+                  results.json.gz cloud_sync.py uploads; runs no detection.
+                  Read mobile/README.md before touching it - and its own
+                  AGENTS.md, which pins the Expo docs version
 scripts/          run_detection, generate_report, export_labels,
                   upload_to_custom_vision, fetch_map_tiles,
                   fetch_map_overlays, install_desktop_app
