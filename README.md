@@ -244,7 +244,7 @@ mobile/          Expo field viewer for phones - reads the results this system
 scripts/         run_detection, generate_report, download_model, export_labels,
                  upload_to_custom_vision, fetch_map_tiles, fetch_map_overlays,
                  install_desktop_app
-tests/           183 unit + integration tests
+tests/           190 unit + integration tests
 config/          settings.example.json (settings.json is created on first run)
 models/          detector weights (gitignored)
 map/             offline satellite tiles + overlays.geojson (gitignored)

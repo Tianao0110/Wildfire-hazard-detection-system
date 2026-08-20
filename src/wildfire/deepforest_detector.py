@@ -190,7 +190,12 @@ class DeepForestDeadTreeDetector:
         from PIL import Image as PILImage
 
         try:
-            with tempfile.TemporaryDirectory(prefix="wildfire_gsd_") as tmp:
+            # ignore_cleanup_errors because Windows refuses to delete a file
+            # something still holds open, and GDAL/rasterio are famous for it.
+            # A leaked temp folder is a far better outcome than a PermissionError
+            # taking down the detection of an otherwise fine image.
+            with tempfile.TemporaryDirectory(prefix="wildfire_gsd_",
+                                             ignore_cleanup_errors=True) as tmp:
                 with PILImage.open(image_path) as im:
                     im = im.convert("RGB")
                     width, height = im.size

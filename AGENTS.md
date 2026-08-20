@@ -348,6 +348,18 @@ outputs/<run>_<timestamp>/
     so it needs `flex: none` or flex-shrink silently squashes the width back
     down; and the fit-to-box `max-height` has to be lifted while zoomed.
 
+16. **Absoluteness is not portable, and this project ships on two platforms.**
+    `Path("/Users/h/x.jpg").is_absolute()` is False on Windows - no drive - and
+    `Path(r"D:\out\x.jpg").is_absolute()` is False on POSIX. Judging a stored
+    path with only the running platform's rules sent a foreign absolute path
+    down the relative branch and glued it onto the run directory. Test both
+    flavours with `PurePosixPath` / `PureWindowsPath` (`PureWindowsPath` splits
+    either separator, so it is the one to use for parts). Write POSIX, read
+    both. `tests/test_run_paths.py` runs the same cases on either OS.
+    Related: `tempfile.TemporaryDirectory` needs `ignore_cleanup_errors=True`
+    anywhere GDAL/rasterio touched the files - Windows will not delete a file
+    something still holds open, and an undeletable temp dir must not fail a job.
+
 ---
 
 ## 8. Verification habits
@@ -366,7 +378,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 183 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 190 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the

@@ -136,3 +136,56 @@ def test_the_console_still_serves_a_run_after_the_project_moves(tmp_path):
         assert image[key], f"{key} is empty after the move"
         assert client.get(image[key]).status_code == 200, f"{key} does not serve"
     assert detail["preview_urls"], "the scan list lost its preview"
+
+
+# --------------------------------------------------- across the two platforms
+# This project ships on Windows and macOS, and a run folder can be copied from
+# one to the other. Absoluteness is not a portable property: "/Users/h/x.jpg"
+# has no drive letter, so WindowsPath calls it relative, and "D:\out\x.jpg" is
+# relative to PosixPath. Judging it with only the running platform's rules glued
+# a foreign absolute path onto the run directory and produced nonsense. These
+# run identically on either OS, which is the point.
+
+RUN_ID = "console_20260101_000000"
+
+
+def _foreign(tmp_path):
+    run = tmp_path / RUN_ID
+    _jpg(run / "annotated" / "DJI_0001.jpg")
+    return run
+
+
+@pytest.mark.parametrize("stored,note", [
+    (f"/Users/h/Desktop/Wildfire/outputs/{RUN_ID}/annotated/DJI_0001.jpg", "macOS absolute"),
+    (rf"D:\Sait\outputs\{RUN_ID}\annotated\DJI_0001.jpg", "Windows absolute"),
+    (rf"C:\Users\h\OneDrive\Wildfire\outputs\{RUN_ID}\annotated\DJI_0001.jpg", "OneDrive path"),
+])
+def test_a_run_copied_from_the_other_platform_still_finds_its_imagery(
+        tmp_path, stored, note):
+    run = _foreign(tmp_path)
+    resolved = run_absolute(stored, run)
+    assert Path(resolved).exists(), f"{note} did not resolve"
+    assert Path(resolved) == run / "annotated" / "DJI_0001.jpg"
+
+
+@pytest.mark.parametrize("stored", ["annotated/DJI_0001.jpg", r"annotated\DJI_0001.jpg"])
+def test_a_relative_path_resolves_whichever_separator_it_uses(tmp_path, stored):
+    run = _foreign(tmp_path)
+    assert Path(run_absolute(stored, run)).exists()
+
+
+def test_what_gets_written_is_always_posix(tmp_path):
+    """Forward slashes travel; backslashes do not. The store form must be the
+    portable one whatever platform wrote it."""
+    run = _foreign(tmp_path)
+    stored = run_relative(str(run / "annotated" / "DJI_0001.jpg"), run)
+    assert stored == "annotated/DJI_0001.jpg"
+    assert "\\" not in stored
+
+
+def test_a_foreign_path_with_no_run_folder_in_it_is_left_alone(tmp_path):
+    """Nothing to re-anchor on: return it unchanged rather than inventing a
+    path under the run directory."""
+    run = _foreign(tmp_path)
+    for stored in (r"D:\somewhere\else\x.jpg", "/somewhere/else/x.jpg"):
+        assert run_absolute(stored, run) == stored

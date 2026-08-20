@@ -6,7 +6,7 @@ Kept dependency-free (stdlib only) so any module can import them cheaply.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Optional
 
 
@@ -60,7 +60,7 @@ def run_relative(path: Optional[str], run_dir: Path) -> Optional[str]:
     try:
         return Path(path).resolve().relative_to(Path(run_dir).resolve()).as_posix()
     except (ValueError, OSError):
-        return path  # outside the run folder: keep whatever it is
+        return path  # outside the run folder, or a path from another platform
 
 
 def run_absolute(stored: Optional[str], run_dir: Path) -> Optional[str]:
@@ -73,17 +73,24 @@ def run_absolute(stored: Optional[str], run_dir: Path) -> Optional[str]:
     """
     if not stored:
         return stored
-    p = Path(stored)
     run_dir = Path(run_dir)
-    if not p.is_absolute():
-        return str(run_dir / p)
-    if p.exists():
+    # Absoluteness has to be judged for BOTH platforms, not the one we happen to
+    # be running on. "/Users/h/.../x.jpg" is not absolute to WindowsPath (it has
+    # no drive), and "D:\\Sait\\...\\x.jpg" is not absolute to PosixPath, so a run
+    # folder copied between a Mac and a Windows box would take the relative
+    # branch and get its foreign absolute path glued onto the run directory.
+    # PureWindowsPath accepts BOTH separators, so it splits either flavour; we
+    # only ever write POSIX, but a hand-edited or foreign file should still work.
+    if not (PurePosixPath(stored).is_absolute() or PureWindowsPath(stored).is_absolute()):
+        parts = PureWindowsPath(stored).parts
+        return str(run_dir.joinpath(*parts)) if parts else stored
+    if Path(stored).exists():
         return stored
-    parts = p.parts
+    parts = PureWindowsPath(stored).parts
     if run_dir.name in parts:
-        tail = Path(*parts[parts.index(run_dir.name) + 1:])
-        if tail.parts:
-            return str(run_dir / tail)
+        tail = parts[parts.index(run_dir.name) + 1:]
+        if tail:
+            return str(run_dir.joinpath(*tail))
     return stored
 
 
