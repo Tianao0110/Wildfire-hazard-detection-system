@@ -615,6 +615,34 @@ Repo rule: commits carry no AI signature lines.
       costs in recall. It buys a usable flame marker at an unmeasured price
 - [x] Suite **174 -> 183** tests
 
+## Batch 30 - Windows parity for the day's work (2026-08-20)
+
+- [x] **Audited every change from batches 23-29 against Windows**, because all of
+      it was written and measured on a Mac. Two real defects, the rest clean
+- [x] **Cross-platform paths in `run_absolute`.** Absoluteness is not portable:
+      a macOS path has no drive letter so `WindowsPath` calls it relative, and a
+      `D:\...` path is relative to `PosixPath`. A run folder copied between the
+      two machines therefore took the relative branch and had its foreign
+      absolute path glued onto the run directory. Now judged with both
+      `PurePosixPath` and `PureWindowsPath`, and split with the latter since it
+      accepts either separator. Four flavours resolve - POSIX and Windows,
+      relative and absolute - and what gets WRITTEN is still always POSIX
+- [x] **`TemporaryDirectory(ignore_cleanup_errors=True)`** for the resampled
+      frame. Windows will not delete a file something still holds open and
+      GDAL/rasterio are famous for it; a leaked temp folder beats a
+      PermissionError killing the detection of an otherwise fine image
+- [x] **Checked and found clean**: the installer's Windows branch (one comment
+      line changed, no code); `Path.replace` for the scan cache and the worker
+      progress file (`os.replace` overwrites atomically on both, unlike
+      `os.rename`); `st_mtime_ns`/`st_size` for the asset stamps; no hard-coded
+      separators outside URLs, which are correctly POSIX. The scan signature
+      also carries a file COUNT, so it still invalidates on add or remove even
+      where a filesystem is lazy about directory mtimes
+- [x] **Not verifiable from here, stated rather than claimed**: the zoom fix is
+      standard CSS on WebView2, which is Chromium, and the same engine family
+      the change was tested in - but nobody has run it on Windows yet
+- [x] Suite **183 -> 190** tests, the new ones running identically on either OS
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it
