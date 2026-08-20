@@ -176,8 +176,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.cloud_jobs = {}   # run_id -> cloud upload status
     app.state.scan_progress = {"state": "idle"}  # mission-folder scan, polled by the page
 
+    def _scan_cache_file() -> Path:
+        return app.state.settings.output_path / ".scan_cache.json"
+
     def _scan_cached(folder: str) -> dict:
         """Scan the mission folder, reusing the result while nothing changed.
+
+        Two layers, because they miss for different reasons: this process's
+        memory, then the cache a PREVIOUS run left on disk. Without the second
+        one every launch of the console repeats the whole EXIF pass before the
+        Scans page can paint.
 
         Publishes progress to app.state so the page can poll it: the scan is one
         blocking request that reads EXIF from every image, which on a full SD
@@ -188,6 +196,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if cached and cached[0] == sig:
             app.state.scan_progress = {"state": "idle"}
             return cached[1]
+
+        stored = ingest.load_scan_cache(_scan_cache_file(), folder, sig)
+        if stored is not None:
+            app.state.source_cache[folder] = (sig, stored)
+            app.state.scan_progress = {"state": "idle"}
+            return stored
 
         def report(done: int, total: int) -> None:
             app.state.scan_progress = {"state": "scanning", "done": done,
@@ -200,6 +214,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             app.state.scan_progress = {"state": "idle"}
         app.state.source_cache[folder] = (sig, result)
+        ingest.save_scan_cache(_scan_cache_file(), folder, sig, result)
         return result
 
     def _source_payload(folder: str) -> dict:

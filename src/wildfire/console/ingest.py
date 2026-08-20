@@ -14,6 +14,7 @@ Each session is labeled day + time-of-day: "Jul 08, 2026 · Morning · 06:24–0
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -49,16 +50,29 @@ def image_time(path: Path) -> datetime:
 
 
 def folder_signature(folder: Path) -> tuple:
-    """Cheap change signature (file count + newest mtime) to reuse scan results."""
+    """Cheap change signature (file count + newest DIRECTORY mtime).
+
+    The count comes free from the listing `os.walk` already did, and the mtime
+    comes from the directories rather than from stat-ing every file. A
+    directory's mtime moves whenever an entry inside it is added, removed or
+    renamed, which is the only change a mission folder makes between visits --
+    so the pair still detects imports and deletions, at 89 stat calls on a
+    21,000-image card instead of 21,494. That matters because this runs on EVERY
+    /api/source request: measured at 150 ms of a 178 ms response, it cost more
+    than the scan result it exists to protect.
+
+    Hidden directories are pruned to match `scan_source`, so churn inside a
+    .Trashes never invalidates a scan that never read it.
+    """
     count, newest = 0, 0.0
     try:
-        for root, _dirs, files in os.walk(folder):
-            for f in files:
-                count += 1
-                try:
-                    newest = max(newest, (Path(root) / f).stat().st_mtime)
-                except OSError:
-                    pass
+        for root, dirs, files in os.walk(folder):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            count += len(files)
+            try:
+                newest = max(newest, os.stat(root).st_mtime)
+            except OSError:
+                pass
     except OSError:
         pass
     return (count, newest)
@@ -96,6 +110,81 @@ def scan_source(folder: str | Path, progress=None) -> dict:
             progress(i, total)
     images.sort(key=lambda im: im["time"])
     return {"folder": str(folder), "images": images, "ignored": ignored}
+
+
+# ---------------------------------------------------------------- scan cache
+# The scan result also survives a restart. Without this every launch of the
+# console repeats the whole EXIF pass before the Scans page can paint -- 7 to 14
+# seconds on a 21,000-image folder depending on how warm the OS file cache is,
+# which reads as a hang.
+SCAN_CACHE_VERSION = 1
+SCAN_CACHE_KEEP = 3  # folders remembered; an operator juggles a handful at most
+
+
+def _encode_scan(result: dict) -> dict:
+    """Scan result -> JSON. Images become triples to keep a 21,000-entry file small."""
+    return {
+        "folder": result["folder"],
+        "ignored": result["ignored"],
+        "images": [[im["path"], im["name"], im["time"].timestamp()]
+                   for im in result["images"]],
+    }
+
+
+def _decode_scan(entry: dict) -> dict:
+    return {
+        "folder": entry["folder"],
+        "ignored": entry["ignored"],
+        "images": [{"path": path, "name": name, "time": datetime.fromtimestamp(ts)}
+                   for path, name, ts in entry["images"]],
+    }
+
+
+def load_scan_cache(cache_file: Path, folder: str, signature: tuple) -> Optional[dict]:
+    """A previous run's scan of `folder`, or None if it cannot be trusted.
+
+    Anything unexpected -- missing file, half-written JSON, an older layout, a
+    signature that no longer matches -- returns None and costs a rescan. A stale
+    cache would show the operator a flight list that is not on disk.
+    """
+    try:
+        blob = json.loads(cache_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(blob, dict) or blob.get("version") != SCAN_CACHE_VERSION:
+        return None
+    entry = (blob.get("folders") or {}).get(folder)
+    if not isinstance(entry, dict):
+        return None
+    if tuple(entry.get("signature") or ()) != tuple(signature):
+        return None
+    try:
+        return _decode_scan(entry)
+    except (KeyError, TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def save_scan_cache(cache_file: Path, folder: str, signature: tuple, result: dict) -> None:
+    """Remember a scan for the next launch. Best effort: a cache that cannot be
+    written is a slow start, never a failed request."""
+    try:
+        blob = json.loads(cache_file.read_text(encoding="utf-8"))
+        stored = blob.get("folders") if blob.get("version") == SCAN_CACHE_VERSION else None
+    except (OSError, ValueError):
+        stored = None
+    folders = dict(stored or {})
+    folders.pop(folder, None)  # re-insert so this folder counts as the newest
+    folders[folder] = _encode_scan(result) | {"signature": list(signature)}
+    while len(folders) > SCAN_CACHE_KEEP:
+        folders.pop(next(iter(folders)))  # insertion order: oldest first
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_name(cache_file.name + ".tmp")
+        tmp.write_text(json.dumps({"version": SCAN_CACHE_VERSION, "folders": folders}),
+                       encoding="utf-8")
+        tmp.replace(cache_file)  # atomic: a half-written cache is never read
+    except OSError:
+        pass
 
 
 def group_sessions(images: list[dict], gap_minutes: int = SESSION_GAP_MINUTES,

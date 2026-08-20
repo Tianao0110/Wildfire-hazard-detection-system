@@ -422,6 +422,33 @@ Repo rule: commits carry no AI signature lines.
       weights, and icon sizes too small to measure), and the docs now describe
       two supported platforms
 
+## Batch 23 - the Scans page stops re-reading the card (2026-08-19)
+
+- [x] **`folder_signature` stats directories, not every file.** It runs on EVERY
+      /api/source request to decide whether the cached scan is still good, and on
+      the 21,200-image folder it walked and stat-ed all 21,494 files: 150 ms of a
+      178 ms response, more than the result it exists to protect. The file count
+      now comes free from the listing `os.walk` already did and the mtime comes
+      from the directories - 89 stats instead of 21,494 - which still moves when
+      an entry is added, removed or renamed, i.e. on exactly the changes a
+      mission folder makes between visits. Hidden directories are pruned to match
+      `scan_source`, so a `.Trashes` write no longer invalidates a scan that
+      never read it
+- [x] **The scan survives a restart.** The cache lived only in `app.state`, so
+      every launch of the console repeated the whole EXIF pass before the Scans
+      page could paint. It is now also written to `outputs/.scan_cache.json`
+      (atomic replace, last 3 folders, 2.9 MB for this folder) and read back on
+      the next launch. Anything unexpected - missing file, half-written JSON, an
+      older layout, a signature that moved - returns None and costs a rescan,
+      because a stale cache would show a flight list that is not on disk
+- [x] **Measured on the real 21,200-image folder**: first paint after a restart
+      **13.7 s -> 0.075 s**, warm request **178 ms -> 40 ms**. The /api/source
+      payload is byte-for-byte identical across old code, new cold scan and
+      cache hit (509,779 bytes, 21,200 images, 218 sessions, 294 ignored)
+- [x] Suite **121 -> 131** tests. The two new behaviours are pinned by tests that
+      fail on the old code: the hidden-directory case fails against the
+      file-stat signature, and the restart case fails with the disk read removed
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it
