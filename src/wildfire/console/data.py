@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..config import Settings
+from ..types import run_absolute
 
 SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
 
@@ -104,10 +105,18 @@ def _counts_from_labels(labels: dict) -> dict:
     return counts
 
 
-def _rel_url(path_str: Optional[str], output_root: Path) -> Optional[str]:
-    """Absolute output path -> /outputs/... URL (None if outside the root)."""
+def _rel_url(path_str: Optional[str], output_root: Path,
+             run_dir: Optional[Path] = None) -> Optional[str]:
+    """Stored artifact path -> /outputs/... URL (None if outside the root).
+
+    `run_dir` resolves what batch.json holds: paths are stored relative to their
+    run folder, and older runs hold absolutes that may point where the project
+    used to live. Without it a moved project serves None for every image.
+    """
     if not path_str:
         return None
+    if run_dir is not None:
+        path_str = run_absolute(path_str, run_dir)
     try:
         rel = Path(path_str).resolve().relative_to(output_root.resolve())
     except (ValueError, OSError):
@@ -158,7 +167,7 @@ def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
         previews = [u for u in (_rel_url(str(p), output_root)
                                 for p in sorted((run_dir / "annotated").glob("*_confirmed.jpg"))[:4]) if u]
     if not previews:
-        previews = [u for u in (_rel_url(im.get("annotated_path"), output_root)
+        previews = [u for u in (_rel_url(im.get("annotated_path"), output_root, run_dir)
                                 for im in images[:4]) if u]
 
     mix, flame_images = _severity_mix(images, settings)
@@ -246,9 +255,9 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
             "confirmed": confirmed_by_path.get(str(im.get("path"))),  # None = boxes not saved
             "reviewed_by_user": im.get("name") in reviewed_names,  # explicit per-image check
             "counts": _count_types(dets),
-            "original_url": _rel_url(im.get("orig_display_path"), root),
-            "annotated_url": _rel_url(im.get("annotated_path"), root),
-            "gridmap_url": _rel_url(im.get("density_path"), root),
+            "original_url": _rel_url(im.get("orig_display_path"), root, run_dir),
+            "annotated_url": _rel_url(im.get("annotated_path"), root, run_dir),
+            "gridmap_url": _rel_url(im.get("density_path"), root, run_dir),
             "confirmed_annotated_url": _rel_url(str(conf_annot), root) if conf_annot.exists() else None,
             "confirmed_gridmap_url": _rel_url(str(conf_grid), root) if conf_grid.exists() else None,
             "error": im.get("error"),
@@ -463,7 +472,8 @@ def map_data(settings: Settings, radius_m: float = 40.0, month: str = "all") -> 
             points.append({"lat": float(im["gps"][0]), "lon": float(im["gps"][1]),
                            "severity": sev or "low", "kind": kind, "run_id": run["id"],
                            "name": im.get("name"), "month": _point_month(im, run),
-                           "thumb": _rel_url(im.get("annotated_path"), root)})
+                           "thumb": _rel_url(im.get("annotated_path"), root,
+                                             root / run["id"])})
 
     month_counts: dict[str, int] = {}
     for p in points:

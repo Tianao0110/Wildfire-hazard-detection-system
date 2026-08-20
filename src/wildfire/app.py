@@ -73,7 +73,7 @@ def run_detection(files, progress=gr.Progress()):
     batch = run_batch(paths, detectors, settings, progress=cb,
                       out_dir=run_dir, batch_label=f"review_{ts}")
     # Persist raw proposals so the operations console can list this run.
-    (run_dir / "batch.json").write_text(json.dumps(batch.to_dict(), indent=2), encoding="utf-8")
+    (run_dir / "batch.json").write_text(json.dumps(batch.to_dict(run_dir), indent=2), encoding="utf-8")
 
     progress(0.95, desc="Preparing review...")
     ann: dict = {}

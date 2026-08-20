@@ -58,7 +58,8 @@ def main() -> int:
         print(f"batch.json not found: {batch_path}. Run scripts.run_detection first.", file=sys.stderr)
         return 2
 
-    batch = BatchResult.from_dict(json.loads(batch_path.read_text(encoding="utf-8")))
+    batch = BatchResult.from_dict(json.loads(batch_path.read_text(encoding="utf-8")),
+                                 batch_path.parent)
     out_pdf = Path(args.out) if args.out else (batch_path.parent / "report.pdf")
 
     ai_text = None

@@ -309,6 +309,16 @@ outputs/<run>_<timestamp>/
     it. Do not hand-edit the `<script>`/`<link>` tags to add your own query;
     `tests/test_frontend_contract.py` fails if a page serves an unstamped asset.
 
+12. **Never store an absolute path in a file that outlives the session.** The
+    desktop launcher baked one in and moving the project made the app do
+    nothing at all; `batch.json` baked in three per image and moving the project
+    made every past run show no imagery, in the console AND the PDF, while the
+    files sat untouched on disk. Both were silent. Derived artifacts are stored
+    relative to their run folder now (`types.run_relative` / `run_absolute`) -
+    pass the run dir to `BatchResult.to_dict()` and `from_dict()` whenever you
+    touch batch.json. `path` is the exception: it points at the operator's
+    source photo outside the run folder and identifies the image across re-runs.
+
 ---
 
 ## 8. Verification habits
@@ -327,7 +337,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 150 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 159 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the

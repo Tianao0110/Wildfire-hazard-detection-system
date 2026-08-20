@@ -47,7 +47,14 @@ def _stub_pipeline(monkeypatch, run_batch):
 
 
 class _Batch:
-    def to_dict(self):
+    """Records the run_dir it is serialized against - batch.json stores the
+    derived-image paths relative to it, so the worker must pass it through."""
+
+    def __init__(self):
+        self.serialized_against = "NOT CALLED"
+
+    def to_dict(self, run_dir=None):
+        self.serialized_against = run_dir
         return {"images": [], "stats": {}, "batch_info": {}}
 
 
@@ -79,12 +86,15 @@ def test_write_progress_overwrites_rather_than_appends(tmp_path):
 def test_main_reports_running_then_done_and_writes_the_batch(tmp_path, monkeypatch):
     seen = []
 
+    made = []
+
     def run_batch(paths, detectors, settings, progress=None, out_dir=None,
                   batch_label=None):
         seen.append({"paths": list(paths), "out_dir": out_dir, "label": batch_label})
         progress(1, 2, "a.jpg")
         assert _progress(tmp_path)["current"] == "a.jpg"  # visible WHILE running
-        return _Batch()
+        made.append(_Batch())
+        return made[-1]
 
     _stub_pipeline(monkeypatch, run_batch)
     monkeypatch.setattr(sys, "argv", ["worker", _spec(tmp_path)])
@@ -95,6 +105,8 @@ def test_main_reports_running_then_done_and_writes_the_batch(tmp_path, monkeypat
     assert final["error"] is None
     assert seen[0]["label"] == "run" and len(seen[0]["paths"]) == 2
     assert json.loads((tmp_path / "run" / "batch.json").read_text(encoding="utf-8"))
+    # serialized against the run folder, so the paths inside stay relocatable
+    assert made[0].serialized_against == tmp_path / "run"
 
 
 def test_main_records_the_error_instead_of_dying_silently(tmp_path, monkeypatch):
