@@ -208,11 +208,31 @@ const SEV_NOTE = {
 };
 
 /* ---------------------------------------------------------- zoom & pan
-   CSS transform on #stage (image + box overlay together, origin 0 0) — the
-   editor's coordinate math uses getBoundingClientRect, which already includes
-   the transform, so drawing boxes keeps working while zoomed in. */
-let zoom = 1, panX = 0, panY = 0;
+   Zoom is applied as an explicit WIDTH on #stage, not as transform: scale().
+   A transform magnifies the bitmap the browser already rasterised at the fitted
+   size — about 900 px of a 5280 px frame — so at 4x the operator was studying a
+   900 px image blown up four times while the other 4000 px of real detail were
+   never drawn. Setting the width makes the browser re-rasterise from the
+   decoded source instead, and the box overlay is SVG in native image
+   coordinates, so it stays vector-sharp at any zoom.
+
+   Panning stays a transform (it moves pixels, it does not resample them). The
+   editor's coordinate math reads getBoundingClientRect, which reflects both. */
+let zoom = 1, panX = 0, panY = 0, fitW = 0;
 let panning = null;
+
+/* The frame's fitted width at 1x, measured from the browser's own layout so
+   console.css remains the only place that decides how a frame fits its box. */
+function measureFit() {
+  const st = document.getElementById("stage");
+  const img = document.getElementById("stage-img");
+  if (!st || !img) return;
+  st.classList.remove("zoomed");
+  st.style.width = "";
+  fitW = img.getBoundingClientRect().width || 0;
+  applyZoom();
+}
+window.addEventListener("resize", measureFit);
 
 /* Is any of the frame outside the viewing box right now? Panning keys off this
    rather than off `zoom > 1`, so content can never be both hidden and
@@ -229,7 +249,12 @@ function contentOverflows() {
 
 function applyZoom() {
   const st = document.getElementById("stage");
-  if (st) st.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  if (st) {
+    const scaled = zoom !== 1 && fitW > 0;
+    st.classList.toggle("zoomed", scaled);
+    st.style.width = scaled ? (fitW * zoom) + "px" : "";
+    st.style.transform = `translate(${panX}px, ${panY}px)`;
+  }
   // Only shown when there is somewhere to go; at 1x on a fitted image it was
   // permanent instructions taking space from the header.
   const hint = document.getElementById("zoom-hint");
@@ -344,6 +369,15 @@ function drawPreview() {
          ${EDIT ? overlaySvg(im) : ""}
        </div>`
     : `<span class="mono" style="color:#cdd6c0; opacity:.5; font-size:12px; text-align:center; line-height:1.7;">${empty}</span>`;
+  // #stage is rebuilt above, so fitW belongs to an element that no longer
+  // exists; re-measure once the new frame has laid out.
+  const simg = document.getElementById("stage-img");
+  if (simg) {
+    simg.addEventListener("load", measureFit);
+    if (simg.complete) measureFit();
+  } else {
+    fitW = 0;
+  }
   // File name and index live in the sidebar's "This image" card now.
   document.getElementById("thumbs").innerHTML = ims.map((t, i) => {
     const kind = imgKind(t);

@@ -335,6 +335,14 @@ a:focus-visible, button:focus-visible, input:focus-visible,
    inside a 446 px box and the bottom 177 px were cropped away with no way to
    scroll to them. Same value on both keeps the frame whole. */
 .preview-box img { max-width: 100%; max-height: max(62vh, 340px); display: block; }
+/* Zoomed, #stage carries an explicit width and the frame fills it, so the
+   browser re-rasterises from the source rather than magnifying the fitted
+   bitmap. The fit-to-box caps only apply at 1x. See applyZoom in detail.html. */
+/* flex: none matters. #stage is a flex item of .preview-box, so the default
+   flex-shrink:1 quietly squashed the explicit zoom width back down to the box
+   width - the stage said 2383 px and the frame still rendered at 846. */
+#stage.zoomed { flex: none; }
+#stage.zoomed img { max-width: none; max-height: none; width: 100%; }
 .thumb-strip { display: flex; gap: 10px; padding: 12px 16px; overflow-x: auto; }
 .thumb-wrap { position: relative; flex-shrink: 0; }
 .thumb {
