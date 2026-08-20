@@ -504,6 +504,39 @@ Repo rule: commits carry no AI signature lines.
 - [x] **The mobile app is now visible from the entry-point docs.** Neither
       README.md nor AGENTS.md mentioned a whole subsystem living in the repo
 
+## Batch 26 - runs that survive a move, and 36% off every image (2026-08-20)
+
+- [x] **`batch.json` stores derived images relative to their run folder.** The
+      three per-image artifacts were written as absolute paths, so moving the
+      project into `SAIT/` left the one real run serving `original_url`,
+      `annotated_url` and `gridmap_url` all `None` - no boxes, no grid map, no
+      original, and "no imagery is stored for this run" in the PDF - while the
+      files sat untouched on disk. Same bug class as the launcher in batch 24.
+      Runs written the old way recover too: an absolute path that no longer
+      resolves is re-anchored on the run folder name rather than given up on.
+      `path` stays absolute on purpose - it is the operator's source photo,
+      outside the run, and it identifies an image across re-runs
+- [x] **Crowns are filtered before the alive/dead classifier runs.**
+      `predict_tile(crop_model=...)` classified every crown DeepForest found and
+      `predict` then threw away everything below `conf_threshold`: measured at
+      1,406 crowns for 270 keepers (19%), so ~17 of 44 seconds per image went
+      into classifying trees the run would never report. Split into two calls -
+      detect crowns, filter, classify the survivors. **44.8 s -> 28.6 s per
+      image, and the boxes and scores come out identical.** On a 200-image
+      flight that is roughly 54 minutes
+- [x] **The fast path degrades rather than breaking.** It calls the private
+      helper `predict_tile` itself uses; if a future DeepForest moves it, the
+      detector says so and falls back to classifying every crown. Slower than
+      before the split (it re-runs the tiling), which is the right trade for a
+      path that only fires on a library change and announces itself
+- [x] **Measured first, and the measurement changed the plan.** Model loading is
+      7.5 s per job (DeepForest 5.6, YOLO 0.3) against 47 s PER IMAGE, so it is
+      0.7% of a 20-image run and 0.1% of a 200-image one - not worth touching.
+      DeepForest was 95% of per-image time; that is where the work went
+- [x] Suite **150 -> 159** tests. Both halves are pinned by tests that fail on
+      the old code, and the two-stage output was diffed box-for-box and
+      score-for-score against the one-call path
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

@@ -19,6 +19,7 @@ Two DeepForest 2.1.0 quirks are handled here:
 from __future__ import annotations
 
 import inspect
+import os
 from typing import Callable, Optional
 
 from .config import Settings
@@ -136,18 +137,52 @@ class DeepForestDeadTreeDetector:
             )
 
     # ------------------------------------------------------------------ predict
-    def _predict_tile(self, image_path: str):
+    def _predict_tile(self, image_path: str, crop_model=None):
+        """Tiled crown detection. `crop_model` opts into DeepForest classifying
+        every crown it finds - the slow path, kept only as a fallback."""
         m = self._model
         s = self.settings
         kwargs = dict(patch_size=s.df_patch_size, patch_overlap=s.df_patch_overlap)
-        if self._crop is not None:
-            kwargs["crop_model"] = self._crop
+        if crop_model is not None:
+            kwargs["crop_model"] = crop_model
         sig = set(inspect.signature(m.predict_tile).parameters)
         if "path" in sig:
             return m.predict_tile(path=image_path, **kwargs)
         if "raster_path" in sig:
             return m.predict_tile(raster_path=image_path, **kwargs)
         return m.predict_tile(image_path, **kwargs)
+
+    def _classify(self, crowns, image_path: str):
+        """Alive/dead classify a crown frame; None if this DeepForest cannot.
+
+        `predict_tile(crop_model=...)` classifies EVERY crown it found, and the
+        caller then discards everything below conf_threshold. Measured on a
+        5280x3956 DJI L2 frame: 1,406 crowns found, 270 (19%) above the
+        threshold - so about 17 of the 44 seconds went into classifying trees
+        the run would never report. The classifier runs per crown, so dropping
+        one first cannot change the verdict on any other: filtering first is the
+        same answer for 39% less work (43.6 s -> 26.8 s, 70 detections either
+        way).
+
+        This calls the private helper that `predict_tile` itself calls. If a
+        future DeepForest moves it, say so and return None - the caller falls
+        back to the slow path, because a slow run beats no dead-tree detection.
+        """
+        try:
+            from deepforest import predict as df_predict
+
+            wrapper = getattr(df_predict, "_crop_models_wrapper_", None)
+            if wrapper is None:
+                self._say("[deadtree] this deepforest has no _crop_models_wrapper_; "
+                          "classifying every crown instead.")
+                return None
+            frame = crowns.copy()
+            frame.root_dir = os.path.dirname(str(image_path))
+            return wrapper(self._crop, self._model.trainer, frame)
+        except Exception as e:
+            self._say(f"[deadtree] two-stage classify failed ({type(e).__name__}: {e}); "
+                      "classifying every crown instead.")
+            return None
 
     @staticmethod
     def _bbox(row):
@@ -165,11 +200,25 @@ class DeepForestDeadTreeDetector:
         if self._model is None or self._crop is None:
             return []
 
-        df = self._predict_tile(str(image))
+        s = self.settings
+
+        # Two calls on purpose: find the crowns, drop the ones this run would
+        # discard anyway, and only then pay the alive/dead classifier. See
+        # _classify for the measurement. The fallback re-runs the tiling, which
+        # is slower than never having split - acceptable for a path that only
+        # fires if DeepForest moves the helper, and it announces itself.
+        crowns = self._predict_tile(str(image))
+        df = None
+        if crowns is not None and len(crowns) and "score" in crowns.columns:
+            keep = crowns[crowns["score"] >= s.conf_threshold]
+            if len(keep) == 0:
+                return []  # nothing clears the threshold; nothing to classify
+            df = self._classify(keep, str(image))
+        if df is None:
+            df = self._predict_tile(str(image), crop_model=self._crop)
         if df is None or len(df) == 0 or "cropmodel_label" not in df.columns:
             return []
 
-        s = self.settings
         dead_label = s.df_dead_label.lower()
         detections: list[Detection] = []
         for _, row in df.iterrows():

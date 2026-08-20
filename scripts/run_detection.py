@@ -88,7 +88,7 @@ def main() -> int:
         bar.close()
 
     json_path = out_dir / "batch.json"
-    json_path.write_text(json.dumps(batch.to_dict(), indent=2), encoding="utf-8")
+    json_path.write_text(json.dumps(batch.to_dict(out_dir), indent=2), encoding="utf-8")
 
     s = batch.stats
     print("\n=== Batch summary ===")

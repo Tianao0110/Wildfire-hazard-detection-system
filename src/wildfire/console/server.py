@@ -30,7 +30,7 @@ from pydantic import BaseModel
 
 from ..config import PROJECT_ROOT, Settings, load_settings
 from ..imageio_utils import SUPPORTED_EXTS
-from ..types import BatchResult, Detection
+from ..types import BatchResult, Detection, run_absolute
 from . import data, ingest
 from .jobs import JobManager
 
@@ -590,7 +590,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         im = next((i for i in (batch or {}).get("images", []) if i.get("name") == name), None)
         if im is None:
             raise HTTPException(404, "unknown image")
-        src = im.get("annotated_path") or im.get("orig_display_path")
+        src = run_absolute(im.get("annotated_path") or im.get("orig_display_path"),
+                           run_dir)
         thumb = ingest.make_thumb(src, app.state.settings.output_path / "_thumbs",
                                   max_px=220) if src else None
         if thumb is None:
@@ -671,7 +672,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         batch_file = run_dir / "batch.json"
         if not batch_file.exists():
             raise HTTPException(404, f"run '{run_id}' has no batch.json")
-        batch = BatchResult.from_dict(json.loads(batch_file.read_text(encoding="utf-8")))
+        batch = BatchResult.from_dict(
+            json.loads(batch_file.read_text(encoding="utf-8")), run_dir)
         path_by_name = {im.name: im.path for im in batch.images}
 
         records = []
@@ -736,7 +738,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 from ..llm import generate_analysis, resolve_model_id
                 from ..report import build_report, build_summary_text, timestamped_report_path
 
-                batch = BatchResult.from_dict(json.loads(batch_file.read_text(encoding="utf-8")))
+                batch = BatchResult.from_dict(
+                    json.loads(batch_file.read_text(encoding="utf-8")), run_dir)
                 labels_file = run_dir / "labels.json"
                 reviewed = labels_file.exists()
                 if reviewed:

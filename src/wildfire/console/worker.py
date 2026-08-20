@@ -84,7 +84,7 @@ def main() -> int:
         batch = run_batch(spec["paths"], detectors, settings, progress=cb,
                           out_dir=run_dir, batch_label=spec.get("batch_label", run_dir.name))
         (run_dir / "batch.json").write_text(
-            json.dumps(batch.to_dict(), indent=2), encoding="utf-8")
+            json.dumps(batch.to_dict(run_dir), indent=2), encoding="utf-8")
         _write_progress(progress_file, "done",
                         len(spec["paths"]), len(spec["paths"]))
         return 0
