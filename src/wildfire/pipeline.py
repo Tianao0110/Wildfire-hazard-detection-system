@@ -62,11 +62,20 @@ def _save_jpg(path: Path, bgr: np.ndarray) -> str:
     return str(path)
 
 
-def _run_detectors(detectors: Sequence, image_src: str) -> list[Detection]:
-    """Run every detector on the image and concatenate detections."""
+def _run_detectors(detectors: Sequence, image_src: str,
+                   settings: Optional[Settings] = None) -> list[Detection]:
+    """Run every detector on the image and concatenate detections.
+
+    Applied here rather than inside a detector so it holds whatever produced the
+    box - YOLO today, the ONNX dead-tree model when it lands - and so one place
+    decides what the operator is shown.
+    """
     merged: list[Detection] = []
     for det in detectors:
         merged.extend(det.predict(image_src))
+    floors = getattr(settings, "class_conf_thresholds", None) or {}
+    if floors:
+        merged = [d for d in merged if d.score >= float(floors.get(d.display, 0) or 0)]
     return merged
 
 
@@ -86,7 +95,7 @@ def process_image(
 
         det_src = _detection_source(path, rgb, out_dir / "_cache",
                                     max_mb=settings.preprocess_max_mb)
-        detections = _run_detectors(detectors, det_src)
+        detections = _run_detectors(detectors, det_src, settings)
 
         # One subfolder per artifact kind — a 200-image flight would otherwise
         # dump 600 mixed files (original/annotated/gridmap) into the run root.

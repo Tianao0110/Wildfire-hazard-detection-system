@@ -178,7 +178,13 @@ Everything is local; nothing is uploaded anywhere.
 - **The box covers the crown, not the tree.** Photos are taken straight down, so
   the trunk sits underneath its own crown and is not in the picture. A whole-tree
   outline needs oblique photos or the LiDAR payload, not a better model.
-- **Flame and smoke are unreliable from the air.** On 30 fire-free frames from a
-  real flight the detector reported 17 flames, 13 of the 30 frames affected. Treat
-  a flame marker as "look at this photo", never as a fire alarm; the survey is a
-  fuel-mapping tool, not a fire-detection sensor.
+- **Flame and smoke are weak from the air, and deliberately made quiet.** The
+  fire model was trained on fire photographed from the ground; from 50 m looking
+  straight down, sunlit dead grass reads as flame. Over 36 fire-free frames from
+  real flights it reported 19 flames and 11 smokes. Flame and smoke therefore
+  need 0.60 confidence where dead trees need 0.30 (`class_conf_thresholds`),
+  which cut that to two flames and no smoke. **What has never been measured is
+  what that costs when there IS a fire** - we hold no imagery of one. Treat a
+  flame marker as "look at this photo", never as a fire alarm, and treat its
+  absence as no information at all: this survey is a fuel-mapping tool, not a
+  fire-detection sensor.

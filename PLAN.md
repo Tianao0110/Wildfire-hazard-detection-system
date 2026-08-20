@@ -593,6 +593,28 @@ Repo rule: commits carry no AI signature lines.
       maps to (2640, 1978) of a 5280x3956 image at both zooms
 - [x] Suite **168 -> 174** tests
 
+## Batch 29 - a confidence floor per hazard type (2026-08-20)
+
+- [x] **Flame and smoke now need 0.60 where dead trees need 0.30.** One global
+      threshold cannot serve both: the crown model is reasonable at 0.30, while
+      the fire model was trained on fire photographed from the ground and reads
+      sunlit dead grass as flame from a nadir frame. Over 36 fire-free frames
+      from real flights it emitted 19 false flames and 11 false smokes across
+      16 of them; with the floor, **two flames on two frames and no smoke**
+- [x] **Smoke is no better than flame, it just fails more quietly.** Probing at
+      0.05 on the same frames: flame gave 175 activations (median 0.09, max 0.76),
+      smoke 73 (median 0.13, max 0.58). The class is not dormant - it
+      hallucinates too, with lower scores. 0.60 clears every false smoke; one
+      false flame still survives 0.70
+- [x] **Applied where detections are merged**, not inside a detector, so it
+      holds for whatever produced the box - and still will when the ONNX
+      dead-tree model replaces the DeepForest path
+- [x] **The caveat is recorded in the code, the manual and here, because it
+      matters more than the number**: this is tuned against false positives
+      ONLY. No imagery we hold contains fire, so nobody has measured what 0.60
+      costs in recall. It buys a usable flame marker at an unmeasured price
+- [x] Suite **174 -> 183** tests
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it
