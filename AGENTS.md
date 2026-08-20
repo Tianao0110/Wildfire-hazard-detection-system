@@ -331,6 +331,23 @@ outputs/<run>_<timestamp>/
     training data. Do not remove this because "it throws away resolution" -
     the resolution was making it worse, and measurably so.
 
+14. **A file that records only positives cannot say "I checked and found
+    nothing".** `labels.json` held confirmed boxes, so an image the reviewer
+    emptied looked exactly like one they never opened, and both fell back to the
+    model's proposals: a false flame that someone deleted and saved came back on
+    the detail page, on its thumbnail, and as a pin on the map - where it also
+    drove the hazard-type filter. `reviewed_images` records the coverage of a
+    save. Read a verdict through `data.review_verdict()` / `data.boxes_for()`
+    rather than reaching into labels.json, and remember the two box shapes: a
+    proposal carries `display`, a confirmed box carries `class`.
+15. **`transform: scale()` magnifies a bitmap; it does not redraw one.** The
+    viewer zoomed with a transform, so a 5280 px frame rasterised at its fitted
+    596 px and 12x showed that 596 px blown up - the operator was told to look
+    closely at detail the browser had already thrown away. Zoom is an explicit
+    width on `#stage` now. Two traps if you touch it: `#stage` is a flex item,
+    so it needs `flex: none` or flex-shrink silently squashes the width back
+    down; and the fit-to-box `max-height` has to be lifted while zoomed.
+
 ---
 
 ## 8. Verification habits
@@ -349,7 +366,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 168 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 174 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the

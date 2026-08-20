@@ -678,17 +678,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         path_by_name = {im.name: im.path for im in batch.images}
 
         records = []
+        covered = []
         for name, boxes in body.labels.items():
             image_path = path_by_name.get(name)
             if image_path is None:
                 raise HTTPException(400, f"unknown image '{name}' in this run")
+            covered.append(image_path)
             for b in boxes:
                 xyxy = [round(float(v), 1) for v in b.get("xyxy", [])]
                 if len(xyxy) != 4 or xyxy[2] <= xyxy[0] or xyxy[3] <= xyxy[1]:
                     continue
                 records.append({"image": image_path, "xyxy": xyxy,
                                 "class": str(b.get("class") or "Dead Tree")})
-        labels = {"labels": records}
+        # Every image this review covered, INCLUDING the ones the reviewer left
+        # with no boxes. `labels` holds positives only, so without this an image
+        # someone emptied looks exactly like one they never opened - and the
+        # detection they deleted comes back on the next load, on the detail page
+        # and as a pin on the map. The reviewer saw a false flame, deleted it,
+        # saved, and it was still there.
+        labels = {"labels": records, "reviewed_images": sorted(set(covered))}
         (run_dir / "labels.json").write_text(json.dumps(labels, indent=2), encoding="utf-8")
         _confirmed_batch(batch, labels, run_dir)  # refresh confirmed imagery
         detail = data.scan_detail(Path(run_id).name, settings)

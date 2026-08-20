@@ -563,6 +563,36 @@ Repo rule: commits carry no AI signature lines.
       flames, scores 0.30-0.61, none above 0.70)
 - [x] Suite **159 -> 168** tests
 
+## Batch 28 - two bugs the operator found (2026-08-20)
+
+- [x] **A deleted detection stays deleted.** `labels.json` records confirmed
+      boxes, so an image the reviewer emptied was indistinguishable from one
+      never opened, and both fell back to the model's proposals. Delete a false
+      flame, save, go back - and it was still on the detail page, still colouring
+      its thumbnail, and still a pin on the Map, which never read labels.json at
+      all and so also fed the hazard-type filter a hazard the operator had
+      rejected. A save now records `reviewed_images`, its coverage; one
+      `data.review_verdict()` / `boxes_for()` pair serves the detail page and
+      the map. Files written before this keep their old meaning on purpose - an
+      old file cannot say what was looked at, and hiding unreviewed hazards is
+      the worse error
+- [x] **`_count_types` read only `display`**, so every reviewer-confirmed box
+      (which carries `class`) would have counted as "?" the moment the map
+      started reading verdicts. Found by wiring the two together
+- [x] **Zoom shows real detail instead of a magnified thumbnail.** The viewer
+      zoomed with `transform: scale()`, which enlarges the bitmap the browser
+      already rasterised: a 5280 px frame fitted to 596 px, so 12x displayed
+      that same 596 px of data - the operator was told to look closely at detail
+      the browser had thrown away. Zoom is an explicit width on `#stage` now, so
+      the browser re-rasterises from the source: **596 px -> 3575 px of real
+      pixels at 6x**, measured in a real browser. Two traps found doing it -
+      `#stage` is a flex item and flex-shrink squashed the width straight back
+      down, and the fit-to-box `max-height` had to be lifted while zoomed
+- [x] **The box editor still lines up**, checked at 1x and 5x in the browser:
+      the SVG overlay tracks the frame to the pixel, and a click at the centre
+      maps to (2640, 1978) of a 5280x3956 image at both zooms
+- [x] Suite **168 -> 174** tests
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

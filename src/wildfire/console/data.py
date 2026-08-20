@@ -105,6 +105,41 @@ def _counts_from_labels(labels: dict) -> dict:
     return counts
 
 
+def review_verdict(run_dir: Path) -> tuple[dict[str, list[dict]], Optional[set[str]]]:
+    """(confirmed boxes per image path, the image paths the review covered).
+
+    labels.json holds positives only, so "reviewed and nothing confirmed" and
+    "never opened" look identical in it. `reviewed_images` disambiguates them
+    and is what stops a deleted detection reappearing. It is None for files
+    written before that key existed: callers must then keep falling back to the
+    model's proposals, because an old file genuinely cannot say which images
+    were looked at, and silently hiding unreviewed hazards is the worse error.
+    """
+    labels = _load_json(run_dir / "labels.json")
+    if not labels:
+        return {}, None
+    confirmed: dict[str, list[dict]] = {}
+    for rec in labels.get("labels", []):
+        if isinstance(rec, dict) and rec.get("confirmed") is not False and "xyxy" in rec:
+            confirmed.setdefault(str(rec.get("image")), []).append(
+                {"xyxy": rec["xyxy"],
+                 "class": rec.get("class") or rec.get("proposed_class") or "Dead Tree"})
+    covered = labels.get("reviewed_images")
+    return confirmed, (set(map(str, covered)) if isinstance(covered, list) else None)
+
+
+def boxes_for(image_path: str, proposals: list[dict],
+              confirmed: dict[str, list[dict]], covered: Optional[set[str]]) -> list[dict]:
+    """What this image actually shows: the reviewer's verdict when there is one,
+    the model's proposals when there is not. An emptied image returns []."""
+    verdict = confirmed.get(str(image_path))
+    if verdict is not None:
+        return verdict
+    if covered is not None and str(image_path) in covered:
+        return []  # reviewed and cleared - not "unreviewed"
+    return proposals
+
+
 def _rel_url(path_str: Optional[str], output_root: Path,
              run_dir: Optional[Path] = None) -> Optional[str]:
     """Stored artifact path -> /outputs/... URL (None if outside the root).
@@ -222,14 +257,7 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
         return None
 
     batch = _load_json(run_dir / "batch.json") or {}
-    labels = _load_json(run_dir / "labels.json")
-    confirmed_by_path: dict[str, list[dict]] = {}
-    if labels:
-        for rec in labels.get("labels", []):
-            if isinstance(rec, dict) and rec.get("confirmed") is not False and "xyxy" in rec:
-                confirmed_by_path.setdefault(str(rec.get("image")), []).append(
-                    {"xyxy": rec["xyxy"],
-                     "class": rec.get("class") or rec.get("proposed_class") or "Dead Tree"})
+    confirmed_by_path, reviewed_paths = review_verdict(run_dir)
 
     # Per-image "the operator eyeballed this one" flags — an explicit user
     # action, distinct from having saved any boxes.
@@ -239,7 +267,10 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
     images = []
     for im in batch.get("images") or []:
         dets = im.get("detections") or []
+        # Confidence is a property of the model, so it is read from the raw
+        # proposals; everything the operator SEES follows the verdict.
         scores.extend(float(d.get("score", 0)) for d in dets)
+        shown = boxes_for(im.get("path"), dets, confirmed_by_path, reviewed_paths)
         stem = Path(str(im.get("path", ""))).stem
         conf_annot = run_dir / "annotated" / f"{stem}_confirmed.jpg"
         conf_grid = run_dir / "gridmaps" / f"{stem}_confirmed.jpg"
@@ -252,9 +283,13 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
             "camera": im.get("camera"),
             "timestamp": im.get("timestamp"),
             "detections": dets,
-            "confirmed": confirmed_by_path.get(str(im.get("path"))),  # None = boxes not saved
+            # None = never reviewed (show proposals); [] = reviewed and cleared.
+            "confirmed": (confirmed_by_path.get(str(im.get("path")))
+                          if confirmed_by_path.get(str(im.get("path"))) is not None
+                          else ([] if reviewed_paths is not None
+                                and str(im.get("path")) in reviewed_paths else None)),
             "reviewed_by_user": im.get("name") in reviewed_names,  # explicit per-image check
-            "counts": _count_types(dets),
+            "counts": _count_types(shown),  # thumbnail colour reads this
             "original_url": _rel_url(im.get("orig_display_path"), root, run_dir),
             "annotated_url": _rel_url(im.get("annotated_path"), root, run_dir),
             "gridmap_url": _rel_url(im.get("density_path"), root, run_dir),
@@ -288,9 +323,13 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
 
 
 def _count_types(dets: list[dict]) -> dict:
+    """Counts by hazard type, across both box shapes: a model proposal carries
+    `display`, a reviewer's confirmed box carries `class`. Reading only one of
+    them silently counted the other kind as "?"."""
     counts: dict[str, int] = {}
     for d in dets:
-        counts[d.get("display", "?")] = counts.get(d.get("display", "?"), 0) + 1
+        tag = d.get("display") or d.get("class") or "?"
+        counts[tag] = counts.get(tag, 0) + 1
     return counts
 
 
@@ -457,11 +496,17 @@ def map_data(settings: Settings, radius_m: float = 40.0, month: str = "all") -> 
     root = settings.output_path
     points: list[dict] = []
     for run in discover_scans(settings):
-        batch = _load_json(root / run["id"] / "batch.json")
+        run_dir = root / run["id"]
+        batch = _load_json(run_dir / "batch.json")
         if not batch:
             continue
+        # The map used to read batch.json alone, so a reviewer could delete a
+        # false flame, save, and still find its pin on the map afterwards - and
+        # the pin drives the hazard-type filter, so the whole map lied.
+        confirmed, reviewed_paths = review_verdict(run_dir)
         for im in batch.get("images") or []:
-            dets = im.get("detections") or []
+            dets = boxes_for(im.get("path"), im.get("detections") or [],
+                             confirmed, reviewed_paths)
             if not dets or not im.get("gps"):
                 continue
             counts = _count_types(dets)
