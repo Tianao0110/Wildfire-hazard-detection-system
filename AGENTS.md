@@ -292,16 +292,18 @@ outputs/<run>_<timestamp>/
     O(n * sites) and took 7.5 s at that size -- inside a web request, so the
     window froze. It is grid-indexed now; keep any new geo work off nested
     scans, and size test data by the MONTH, not by one 60-photo run.
-11. **Browsers cache pages and `static/` across code updates.** The symptom is
-    an `Uncaught ReferenceError` for a shared helper that plainly exists — or
-    one that was just deleted: removing `kindLegendHtml` broke a still-cached
-    `/map` that called it, while the fresh `console.js` loaded fine beside it.
-    Old HTML + new JS (or the reverse) is a stale-cache mix, not a code bug:
-    hard-refresh (Ctrl+Shift+R / Cmd+Shift+R) before debugging any
-    "helper is not defined" error, and hard-refresh once after pulling
-    someone's console changes. The lasting fix, if this keeps biting, is a
-    version query on the shared `<script>`/`<link>` tags — a cross-page
-    change to decide as a team.
+11. **Browsers used to mix generations of the console. Fixed 2026-08-19.** The
+    symptom was an `Uncaught ReferenceError` for a shared helper that plainly
+    exists — or one that was just deleted: removing `kindLegendHtml` broke a
+    still-cached `/map` that called it, while the fresh `console.js` loaded fine
+    beside it. Old HTML + new JS is a stale-cache mix, not a code bug.
+    `server._page()` now stamps every `/static/` link with a version taken from
+    that file's mtime and size, and serves the page itself `no-cache`, so the
+    browser cannot keep one half of a pair. **What this means for you:** you no
+    longer need to hard-refresh after pulling someone's console changes, and if
+    you ever see a "helper is not defined" again it IS a code bug — go and read
+    it. Do not hand-edit the `<script>`/`<link>` tags to add your own query;
+    `tests/test_frontend_contract.py` fails if a page serves an unstamped asset.
 
 ---
 
@@ -321,10 +323,12 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 131 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 150 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
-  Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `worker.py`,
-  `desktop.py`.
+  Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
+  `worker.py` covers its protocol only (progress file, error reporting, the
+  settings snapshot) with `detectors`/`pipeline` stubbed - detection itself is
+  exercised by `test_detect_smoke.py`.
 - **macOS**: supported as of 2026-07-27 and exercised end to end on an M-series
   MacBook Air - `install-macos.command`, the `~/Applications` bundle, a detection job
   through the real worker subprocess on MPS, and a generated PDF. Untested

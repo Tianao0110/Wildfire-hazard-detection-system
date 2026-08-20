@@ -449,6 +449,35 @@ Repo rule: commits carry no AI signature lines.
       fail on the old code: the hidden-directory case fails against the
       file-stat signature, and the restart case fails with the disk read removed
 
+## Batch 24 - three ways the console failed quietly (2026-08-19)
+
+- [x] **The console stamps its own static files, closing gotcha 11.** Every page
+      linked a bare `/static/console.js`, so a browser holding the old HTML and
+      the new JS ran a mismatched pair and reported a missing helper that plainly
+      exists. `server._page()` now rewrites each `/static/` link with a version
+      taken from that file's mtime and size and serves the page `no-cache`; the
+      assets keep their ETags, so a matching pair still validates in one 304.
+      The "hard-refresh after every update" line is out of AGENTS.md and the
+      manual - a "helper is not defined" now means a real bug
+- [x] **The macOS app says why it will not open.** The bundle's launcher bakes in
+      an absolute path, and `cd "$PROJECT" || exit 1` meant that moving the
+      project folder made double-clicking the app do nothing at all: no window,
+      no error, nothing in Console. It now raises an alert naming the old path
+      and telling the operator to re-run `install-macos.command`, and does the
+      same when `.venv` is missing. Windows needed no change - a broken `.lnk`
+      raises its own dialog
+- [x] **`worker.py` has tests.** It is the process that actually runs detection,
+      and the console learns what happened ONLY from the progress file it writes,
+      so a worker that died without writing `"error"` left the Scans page
+      spinning forever and the suite green. Nine tests pin the protocol -
+      running -> done, the error path, a models-failed-to-load path, the atomic
+      write, and the settings snapshot - with `detectors`/`pipeline` stubbed so
+      they run in 60 ms without torch
+- [x] Suite **131 -> 150** tests. Each new behaviour was checked against a
+      deliberately broken copy first: reverting the pages to `FileResponse` fails
+      10 of them, and dropping the worker's `_write_progress` from its `except`
+      fails 2
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

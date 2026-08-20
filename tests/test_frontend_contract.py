@@ -259,3 +259,67 @@ def test_pin_filter_is_wired_up():
             f"{page} touches localStorage directly; go through "
             f"loadKindFilter/saveKindFilter so the two maps cannot drift apart"
         )
+
+
+# --------------------------------------------------------- cache busting
+# Gotcha 11: a browser that kept the old HTML and refetched console.js (or the
+# reverse) runs a mismatched pair, and the symptom is an "X is not defined" for
+# a helper that plainly exists. The server stamps every /static/ link with a
+# version that moves when the file does, so the browser cannot mix generations.
+
+
+def _client():
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    import tempfile
+
+    from fastapi.testclient import TestClient
+
+    from src.wildfire.config import Settings
+    from src.wildfire.console.server import create_app
+
+    tmp = tempfile.mkdtemp()
+    return TestClient(create_app(Settings(output_dir=tmp, models_dir=tmp,
+                                          model_sources=[])))
+
+
+ROUTES = ["/", "/scans", "/review", "/map", "/reports", "/settings",
+          "/scans/console_20260101_000000"]
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_served_pages_stamp_every_static_link(route: str):
+    body = _client().get(route).text
+    bare = re.findall(r'(?:href|src)="(/static/[^"]*)"', body)
+    assert bare, f"{route} links no /static asset at all"
+    unstamped = [u for u in bare if "?v=" not in u]
+    assert not unstamped, f"{route} serves unstamped assets: {unstamped}"
+
+
+def test_pages_are_served_no_cache():
+    """The document naming the versions must never itself be stale."""
+    r = _client().get("/")
+    assert r.headers.get("cache-control") == "no-cache"
+    assert r.headers["content-type"].startswith("text/html")
+
+
+def test_a_stamped_asset_still_resolves():
+    client = _client()
+    url = re.search(r'(/static/console\.js\?v=[a-f0-9]+)', client.get("/").text)
+    assert url, "console.js is not stamped"
+    assert client.get(url.group(1)).status_code == 200
+
+
+def test_the_stamp_moves_when_the_asset_changes(tmp_path, monkeypatch):
+    from src.wildfire.console import server
+
+    def stamp() -> str:
+        return re.search(r'console\.js\?v=([a-f0-9]+)', _client().get("/").text).group(1)
+
+    before = stamp()
+    original = SHARED_JS.read_bytes()
+    try:
+        SHARED_JS.write_bytes(original + b"\n// touched by the test\n")
+        assert stamp() != before, "editing console.js left the stamp unchanged"
+    finally:
+        SHARED_JS.write_bytes(original)
