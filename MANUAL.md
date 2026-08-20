@@ -158,7 +158,7 @@ Everything is local; nothing is uploaded anywhere.
 | Report has no AI analysis section | LM Studio isn’t running — optional; start it and regenerate |
 | GPS missing on the map | Photos lack EXIF GPS and no `.MRK` file sits beside them |
 | App feels slow during detection | Expected on CPU-only machines; the UI stays usable — check progress in Scans |
-| Page shows errors or looks half-updated right after a software update | The browser kept old files cached — hard-refresh (Ctrl+Shift+R; ⌘⇧R on macOS); if the desktop window persists, close and reopen it |
+| Page shows errors or looks half-updated right after a software update | Should no longer happen — the console versions its own files since 2026-08-19. If it does, close and reopen the app; if that fails, hard-refresh (Ctrl+Shift+R; ⌘⇧R on macOS) and report it, because it now means a real bug |
 
 ## 8. Known limits (by design)
 

@@ -10,6 +10,7 @@ Run:  python -m src.wildfire.console    (opens http://127.0.0.1:7861)
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -23,7 +24,7 @@ from typing import Optional
 
 import cv2
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -35,6 +36,49 @@ from .jobs import JobManager
 
 PKG_DIR = Path(__file__).resolve().parent
 PAGES = PKG_DIR / "pages"
+
+# Every page links the same console.css/console.js, so a browser that kept one
+# and refetched the other runs old HTML against new JS -- which surfaces as an
+# "X is not defined" for a helper that plainly exists, or one just deleted (see
+# gotcha 11 in AGENTS.md: removing kindLegendHtml broke a still-cached /map).
+# Stamping each link with a version that moves when the file does makes the
+# browser fetch the pair that shipped together.
+_STATIC_LINK = re.compile(r'(?P<attr>href|src)="/static/(?P<path>[^"?]+)"')
+
+
+def _asset_version(rel: str) -> str:
+    """Short cache key for one file under static/; empty if it is not there.
+
+    Keyed on mtime and size rather than on the contents: two stats beat hashing
+    150 KB of vendored Leaflet on every page request, and a checkout that
+    rewrites a file always moves its mtime. The trade is that pulling an
+    unchanged file still restamps it, which costs one refetch after a pull -
+    exactly when you want one anyway.
+    """
+    try:
+        st = (PKG_DIR / "static" / rel).stat()
+    except OSError:
+        return ""
+    return hashlib.sha1(f"{st.st_mtime_ns}:{st.st_size}".encode()).hexdigest()[:8]
+
+
+def _page(name: str) -> HTMLResponse:
+    """A console page with its static links version-stamped.
+
+    Served as HTML rather than a FileResponse so the stamps can be injected, and
+    marked no-cache so the page itself is always revalidated: the assets it
+    points at carry versions and may be cached hard, but the document naming
+    them must never be stale.
+    """
+    html = (PAGES / name).read_text(encoding="utf-8")
+
+    def stamp(m: "re.Match[str]") -> str:
+        version = _asset_version(m.group("path"))
+        query = f"?v={version}" if version else ""
+        return f'{m.group("attr")}="/static/{m.group("path")}{query}"'
+
+    return HTMLResponse(_STATIC_LINK.sub(stamp, html),
+                        headers={"Cache-Control": "no-cache"})
 REVIEW_APP_URL = "http://127.0.0.1:7860"  # the Gradio Layer-1.5 annotator
 REVIEW_PORT = 7860
 
@@ -176,8 +220,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.cloud_jobs = {}   # run_id -> cloud upload status
     app.state.scan_progress = {"state": "idle"}  # mission-folder scan, polled by the page
 
+    def _scan_cache_file() -> Path:
+        return app.state.settings.output_path / ".scan_cache.json"
+
     def _scan_cached(folder: str) -> dict:
         """Scan the mission folder, reusing the result while nothing changed.
+
+        Two layers, because they miss for different reasons: this process's
+        memory, then the cache a PREVIOUS run left on disk. Without the second
+        one every launch of the console repeats the whole EXIF pass before the
+        Scans page can paint.
 
         Publishes progress to app.state so the page can poll it: the scan is one
         blocking request that reads EXIF from every image, which on a full SD
@@ -188,6 +240,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if cached and cached[0] == sig:
             app.state.scan_progress = {"state": "idle"}
             return cached[1]
+
+        stored = ingest.load_scan_cache(_scan_cache_file(), folder, sig)
+        if stored is not None:
+            app.state.source_cache[folder] = (sig, stored)
+            app.state.scan_progress = {"state": "idle"}
+            return stored
 
         def report(done: int, total: int) -> None:
             app.state.scan_progress = {"state": "scanning", "done": done,
@@ -200,6 +258,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             app.state.scan_progress = {"state": "idle"}
         app.state.source_cache[folder] = (sig, result)
+        ingest.save_scan_cache(_scan_cache_file(), folder, sig, result)
         return result
 
     def _source_payload(folder: str) -> dict:
@@ -243,31 +302,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # ------------------------------------------------------------- pages
     @app.get("/")
     def page_dashboard():
-        return FileResponse(PAGES / "dashboard.html")
+        return _page("dashboard.html")
 
     @app.get("/scans")
     def page_scans():
-        return FileResponse(PAGES / "scans.html")
+        return _page("scans.html")
 
     @app.get("/scans/{run_id}")
     def page_detail(run_id: str):
-        return FileResponse(PAGES / "detail.html")
+        return _page("detail.html")
 
     @app.get("/review")
     def page_review():
-        return FileResponse(PAGES / "review.html")
+        return _page("review.html")
 
     @app.get("/map")
     def page_map():
-        return FileResponse(PAGES / "map.html")
+        return _page("map.html")
 
     @app.get("/reports")
     def page_reports():
-        return FileResponse(PAGES / "reports.html")
+        return _page("reports.html")
 
     @app.get("/settings")
     def page_settings():
-        return FileResponse(PAGES / "settings.html")
+        return _page("settings.html")
 
     # ------------------------------------------------------------- api
     @app.get("/api/summary")

@@ -273,11 +273,42 @@ def make_app_bundle(app_path: Path, icon: Path | None) -> Path:
 
     # The launcher stays a shell script so the bundle keeps working after a
     # `git pull` - it re-reads the code every launch, like the .lnk on Windows.
+    #
+    # Both paths below are absolute and baked in at install time, so moving or
+    # renaming the project folder breaks them. `cd ... || exit 1` did that
+    # SILENTLY: double-clicking the app did nothing at all, no window, no error,
+    # nothing in Console - which reads as "the app is broken" rather than "the
+    # folder moved". A .lnk on Windows at least raises its own dialog; a shell
+    # launcher raises nothing, so it has to say so itself.
     launcher = macos_dir / "wildfire"
+    alert = (
+        'osascript -e \'display alert "{title}" message "{msg}" as critical\' '
+        ">/dev/null 2>&1"
+    )
+    moved = alert.format(
+        title=APP_NAME,
+        msg=(f"This app points at:\n\n{PROJECT_ROOT}\n\n"
+             "That folder was moved, renamed or deleted. Open the project in its "
+             "new location and run install-macos.command again to rebuild the app."),
+    )
+    no_venv = alert.format(
+        title=APP_NAME,
+        msg=(f"The Python environment is missing from:\n\n{PROJECT_ROOT}/.venv\n\n"
+             "Run install-macos.command in the project folder to recreate it."),
+    )
     launcher.write_text(
         "#!/bin/sh\n"
-        f'cd "{PROJECT_ROOT}" || exit 1\n'
-        f'exec "{venv_python()}" -m src.wildfire.console --desktop\n',
+        f'PROJECT="{PROJECT_ROOT}"\n'
+        f'PY="{venv_python()}"\n'
+        'if ! cd "$PROJECT" 2>/dev/null; then\n'
+        f"  {moved}\n"
+        "  exit 1\n"
+        "fi\n"
+        'if [ ! -x "$PY" ]; then\n'
+        f"  {no_venv}\n"
+        "  exit 1\n"
+        "fi\n"
+        'exec "$PY" -m src.wildfire.console --desktop\n',
         encoding="utf-8")
     launcher.chmod(0o755)
     return app_path

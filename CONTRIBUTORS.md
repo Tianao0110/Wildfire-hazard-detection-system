@@ -67,9 +67,11 @@ every run as files on disk, neither of which a phone can do, so the mobile side
 needs its own architecture — a backend that holds the data and does the
 inference, with the phone as a client.
 
-`docker-compose.yml` (PostgreSQL + PostGIS) is the first piece of that backend
-on `main`. The desktop application does not use it; it has no database and no
-services, and stays that way (see the hard rules in `AGENTS.md`).
+`mobile/` holds the Expo app. `mobile/docker-compose.yml` (PostgreSQL +
+PostGIS) sketches the backend it would talk to, but nothing builds or calls it
+yet - the app reads Azure Blob directly. The desktop application does not use
+it either; it has no database and no services, and stays that way (see the hard
+rules in `AGENTS.md`).
 
 ---
 
