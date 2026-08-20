@@ -134,6 +134,21 @@ class Settings:
     # enough to kill those, fine enough to keep small crowns. 0 disables.
     df_target_gsd_cm: float = 4.0
 
+    # A floor per hazard type, applied on top of conf_threshold. Flame and smoke
+    # need a much higher bar than dead trees: the fire/smoke model was trained on
+    # fire photographed from the ground, and a nadir frame at 1.4 cm/px is a
+    # different visual domain, so sunlit dead grass reads as flame. Measured over
+    # 36 fire-free frames from real flights - at 0.30 it emitted 21 false flames
+    # and 11 false smokes; at 0.60, two flames and no smoke.
+    #
+    # HONEST CAVEAT, do not lose it: this is tuned against false positives only.
+    # There is no fire in any imagery we hold, so nobody has measured what 0.60
+    # costs in RECALL. It buys a usable flame marker at an unmeasured price, and
+    # the price should be measured before anyone relies on it. Lower a class to
+    # 0 to fall back to conf_threshold alone.
+    class_conf_thresholds: dict[str, float] = field(
+        default_factory=lambda: {"Flame": 0.60, "Smoke": 0.60})
+
     # --- console display severity (UI-only badge; no risk field in data/PDF) ---
     # Dead trees are the primary target, so severity = avg dead trees per image.
     # Calibrated on real imagery: 67 frames of the May 2025 flight run 27..102

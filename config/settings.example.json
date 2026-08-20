@@ -9,38 +9,36 @@
   "language": "English",
   "report_max_image_pages": 30,
   "report_detail_pages": 4,
-
   "cloud_enabled": false,
   "cloud_provider": "azure",
   "azure_connection_string": "",
   "azure_container": "wildfire-runs",
   "cloud_auto_upload": false,
   "cloud_upload_mode": "results",
-
-  "conf_threshold": 0.30,
+  "conf_threshold": 0.3,
+  "class_conf_thresholds": {
+    "Flame": 0.6,
+    "Smoke": 0.6
+  },
   "slice_size": 1024,
   "preprocess_max_mb": 2.0,
-  "overlap_ratio": 0.20,
+  "overlap_ratio": 0.2,
   "batch_size": 4,
   "perform_standard_pred": true,
-
   "grid_rows": 6,
   "grid_cols": 8,
-
   "df_patch_size": 800,
   "df_patch_overlap": 0.25,
   "df_crown_model": "weecology/deepforest-tree",
   "df_dead_model": "weecology/cropmodel-deadtrees",
   "df_dead_label": "Dead",
-
+  "df_target_gsd_cm": 4.0,
   "severity_deadtrees_high": 80.0,
   "severity_deadtrees_medium": 45.0,
-
   "onnx_input_size": 640,
   "onnx_normalize": "0-255",
   "onnx_channel_order": "RGB",
   "onnx_nms_iou": 0.45,
-
   "model_sources": [
     {
       "key": "deadtree",

@@ -132,6 +132,10 @@ _EDITABLE_SETTINGS: dict = {
     "perform_standard_pred": bool,
     "severity_deadtrees_high": lambda v: max(0.1, float(v)),
     "severity_deadtrees_medium": lambda v: max(0.1, float(v)),
+    "class_conf_thresholds": lambda v: {
+        str(k): max(0.0, min(0.99, float(x)))
+        for k, x in (v or {}).items() if isinstance(x, (int, float, str))
+    } if isinstance(v, dict) else {},
     "df_target_gsd_cm": lambda v: 0.0 if float(v) <= 0 else max(1.0, min(50.0, float(v))),
     "onnx_input_size": lambda v: max(64, min(4096, int(v))),
     "onnx_normalize": lambda v: v if v in ("0-255", "0-1", "imagenet") else "0-255",
