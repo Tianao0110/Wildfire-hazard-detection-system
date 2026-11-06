@@ -182,6 +182,76 @@ function countsLine(counts) {
   return parts.length ? parts.join(" · ") : "no detections";
 }
 
+/* ------------------------------------------------ leaving with unsaved work
+   A page holding unsaved work sets window.WF_LEAVE_GUARD to a function that
+   returns a warning, or "" while there is nothing to lose. Every in-app way out
+   goes through wfNavigate: nav tabs and other links (caught below), the
+   d/s/r/m/p/e keys, and code that changes location. The browser's own
+   beforeunload dialog is kept for browser mode, but WebView2 and WKWebView do
+   not reliably show it, so it cannot be the only line of defence. */
+function wfNavigate(href) {
+  const warning = window.WF_LEAVE_GUARD ? window.WF_LEAVE_GUARD() : "";
+  if (!warning) { location.href = href; return; }
+  wfConfirm(warning, { ok: "Leave without saving", cancel: "Stay on this page", danger: true })
+    .then(leave => {
+      if (!leave) return;
+      window.WF_LEAVE_GUARD = null;   // or beforeunload would ask a second time
+      location.href = href;
+    });
+}
+
+document.addEventListener("click", e => {
+  if (!window.WF_LEAVE_GUARD || e.defaultPrevented) return;
+  const a = e.target.closest && e.target.closest("a[href]");
+  if (!a || a.target === "_blank" || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const url = new URL(a.getAttribute("href"), location.href);
+  if (url.origin !== location.origin) return;
+  if (url.pathname === location.pathname && url.search === location.search) return;
+  if (!window.WF_LEAVE_GUARD()) return;
+  e.preventDefault();
+  wfNavigate(url.href);
+}, true);
+
+window.addEventListener("beforeunload", e => {
+  const warning = window.WF_LEAVE_GUARD ? window.WF_LEAVE_GUARD() : "";
+  if (warning) { e.preventDefault(); e.returnValue = warning; }
+});
+
+/* An in-page confirmation, resolving true or false. Not window.confirm: native
+   dialogs are unreliable inside the desktop webviews. Escape and the backdrop
+   cancel; the safe choice holds focus, so Enter never confirms a destructive
+   action by accident. */
+function wfConfirm(message, { ok = "OK", cancel = "Cancel", danger = false } = {}) {
+  return new Promise(resolve => {
+    const back = document.createElement("div");
+    back.className = "wf-modal-back";
+    back.innerHTML = `
+      <div class="wf-modal" role="alertdialog" aria-modal="true" aria-labelledby="wf-modal-msg">
+        <div id="wf-modal-msg" class="wf-modal-msg">${esc(message)}</div>
+        <div class="wf-modal-actions">
+          <button type="button" class="btn-quiet" data-a="cancel">${esc(cancel)}</button>
+          <button type="button" class="btn ${danger ? "btn-danger" : "btn-primary"}" data-a="ok">${esc(ok)}</button>
+        </div>
+      </div>`;
+    const done = value => {
+      document.removeEventListener("keydown", onKey, true);
+      back.remove();
+      resolve(value);
+    };
+    const onKey = e => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); }
+    };
+    back.addEventListener("click", e => {
+      if (e.target === back) return done(false);
+      const b = e.target.closest("[data-a]");
+      if (b) done(b.dataset.a === "ok");
+    });
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(back);
+    back.querySelector('[data-a="cancel"]').focus();
+  });
+}
+
 function toast(msg, ms = 5000) {
   const t = document.createElement("div");
   t.className = "toast";
@@ -236,8 +306,11 @@ document.addEventListener("keydown", e => {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return; 
   // fix to the issue of typing causing it to trigger and steal you to another tab mid type
   if (document.activeElement?.isContentEditable) return;
+  // a page in the middle of something keyboard-heavy (box review) opts out, so
+  // a stray letter cannot throw the operator onto another page mid-review
+  if (window.WF_SUPPRESS_NAV_KEYS) return;
   const href = NAV_KEYS[e.key.toLowerCase()];
-  if (href) location.href = href;
+  if (href) wfNavigate(href);
 });
   const logo = BRANDING.logo_url
     ? `<img src="${esc(BRANDING.logo_url)}" alt="logo" style="height:32px; width:auto; border-radius:6px;">`
@@ -379,6 +452,29 @@ function fmtCoord(lat, lon) {
    physical location; opening it should show the frames taken there, not all 58
    images of the flight that happened to include it. Sites can span runs, so
    members are grouped by run and each run gets its own link. */
+/* "1 photo" / "12 photos". Copy like "1 images" is the kind of thing that makes
+   a tool read as unfinished, and it was in four places. */
+const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+
+/* How a run is named on every page: the flight's title in front, the folder id
+   small behind it for anyone who needs the exact run. Titles come from the
+   photos' capture time unless the operator renamed the run. */
+function runLabel(s, { size = 13, link = false } = {}) {
+  const title = esc(s.title || s.id || s.run_id || "");
+  const id = esc(s.id || s.run_id || "");
+  // A name the operator chose no longer says when the flight was, so the date
+  // moves into the small line instead of being lost.
+  const sub = s.title_custom && s.flown_date ? `${esc(s.flown_date)} \u00b7 ${id}` : id;
+  const href = `/scans/${encodeURIComponent(s.id || s.run_id)}`;
+  const head = link
+    ? `<a href="${href}" class="run-title" style="font-size:${size}px;">${title}</a>`
+    : `<span class="run-title" style="font-size:${size}px;">${title}</span>`;
+  return `<span class="run-label" title="${title}">${head}<span class="run-id" title="${id}">${sub}</span></span>`;
+}
+
+/* Popups name the flight; the page sets this from /api/map-data's run_titles. */
+window.WF_RUN_TITLES = window.WF_RUN_TITLES || {};
+
 function siteImageLinks(s, label) {
   const byRun = new Map();
   for (const m of s.members || []) {
@@ -397,9 +493,9 @@ function sitePopupHtml(s, i) {
   const members = siteImageLinks(s, `Site ${i + 1}`).map(l => `
     <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-top:3px;">
       <span class="mono" style="font-size:10px; color:#6b6b63; overflow:hidden;
-            text-overflow:ellipsis; white-space:nowrap;">${esc(l.runId)}</span>
+            text-overflow:ellipsis; white-space:nowrap;" title="${esc(l.runId)}">${esc(window.WF_RUN_TITLES[l.runId] || l.runId)}</span>
       <a href="${l.url}" style="color:#2D5A2D; font-weight:600; font-size:10px; white-space:nowrap;"
-         >${l.names.length} image${l.names.length === 1 ? "" : "s"} &rarr;</a>
+         >${plural(l.names.length, "photo")} &rarr;</a>
     </div>`).join("");
   const thumb = ((s.members || []).find(m => m.thumb) || {}).thumb;
   return `

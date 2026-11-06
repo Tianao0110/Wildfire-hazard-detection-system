@@ -323,3 +323,41 @@ def test_the_stamp_moves_when_the_asset_changes(tmp_path, monkeypatch):
         assert stamp() != before, "editing console.js left the stamp unchanged"
     finally:
         SHARED_JS.write_bytes(original)
+
+
+# ------------------------------------------------------- unsaved review work
+# Review is the longest task in the app, and it used to be one keystroke from
+# loss: the d/s/r/m/p/e page shortcuts called location.href directly, and no
+# page asked before leaving. These are textual, like the rest of this file.
+
+DETAIL_HTML = PAGES / "detail.html"
+
+
+def test_page_shortcuts_go_through_the_leave_guard():
+    js = SHARED_JS.read_text(encoding="utf-8")
+    nav = js[js.index("const NAV_KEYS"):]
+    nav = nav[:nav.index("});") + 3]
+    assert "wfNavigate(href)" in nav and "location.href" not in nav, \
+        "a page shortcut must not leave without asking"
+    assert "WF_SUPPRESS_NAV_KEYS" in nav, "review must be able to switch the letters off"
+    assert "function wfNavigate" in js and "beforeunload" in js and "function wfConfirm" in js
+
+
+def test_the_review_page_guards_its_work():
+    html = DETAIL_HTML.read_text(encoding="utf-8")
+    assert "window.WF_LEAVE_GUARD" in html, "leaving with unsaved boxes must ask"
+    assert "window.WF_SUPPRESS_NAV_KEYS = on" in html, "letters are off while reviewing"
+    assert "localStorage.setItem(DRAFT_KEY" in html, "work survives a closed window"
+    for fn in ("remember()", "changed()"):
+        assert html.count(fn) >= 3, f"every box edit should go through {fn}"
+
+
+def test_number_keys_match_the_label_dropdown_order():
+    """Pressing 2 must give the label second in the list, or a reviewer working
+    from the dropdown learns the wrong key."""
+    html = DETAIL_HTML.read_text(encoding="utf-8")
+    keys = re.search(r"const LABEL_KEYS = \[([^\]]+)\]", html).group(1)
+    keys = [k.strip().strip('"') for k in keys.split(",")]
+    select = re.search(r'<select id="label-pick"[^>]*>(.*?)</select>', html, re.S).group(1)
+    options = re.findall(r"<option>([^<]+)</option>", select)
+    assert keys == options

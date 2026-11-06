@@ -50,8 +50,8 @@ function draw() {
         <div class="mono" style="font-size:10px; color:var(--muted-3);">${esc(r.file)}</div>
       </div>
       <div style="line-height:1.3; min-width:0;">
-        <a class="scan-id" style="font-size:12px;" href="/scans/${encodeURIComponent(r.run_id)}">${esc(r.run_id)}</a>
-        <div style="font-size:11px; color:var(--muted-2);">${r.images} images · ${esc(countsLine(r.detections_by_type))}</div>
+        ${runLabel(r, { size: 13, link: true })}
+        <div style="font-size:11px; color:var(--muted-2);">${plural(r.images, "photo")} · ${esc(countsLine(r.detections_by_type))}</div>
       </div>
       <span class="mono" style="font-size:12px; text-align:right; color:var(--text-2);">${r.size_kb} KB</span>
       <div>${sevBadge(r.severity)}</div>

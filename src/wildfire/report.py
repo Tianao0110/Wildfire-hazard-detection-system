@@ -306,9 +306,15 @@ def _cover(batch: BatchResult) -> list:
         _review_badge(reviewed),
         Spacer(1, 0.3 * inch),
     ]
+    from .gps import capture_window, flown_labels
+
+    flown_day, flown_time = flown_labels(capture_window(im.timestamp for im in batch.images))
     info = [
         ["Batch", str(bi.get("batch_label", "n/a"))],
     ]
+    # When it was FLOWN leads; "Generated" below is only when the analysis ran.
+    if flown_day:
+        info.append(["Flown", _pdf_safe(flown_day + (f", {flown_time}" if flown_time else ""))])
     if bi.get("operator"):
         info.append(["Operator", _pdf_safe(str(bi["operator"]))])
     # The computer, when we know it. The GPU model that used to sit here is an

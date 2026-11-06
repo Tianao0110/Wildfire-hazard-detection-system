@@ -128,7 +128,7 @@
     </div>
 
     <div class="tbl-head">
-      <span>SCAN ID</span><span>DATE</span><span>DETECTIONS</span>
+      <span>FLIGHT</span><span>ANALYSED</span><span>DETECTIONS</span>
       <span style="text-align:right;">IMAGES</span><span>SEVERITY</span><span>STATUS</span>
       <span style="text-align:right;">ACTION</span>
     </div>
@@ -571,10 +571,10 @@ function drawTable() {
     `Showing ${list.length} of ${SCANS.length} scans`;
   document.getElementById("rows").innerHTML = list.map(s => `
     <div class="tbl-row">
-      <span class="scan-id" title="${esc(s.id)}">${esc(s.id)}</span>
+      ${runLabel(s)}
       <div style="line-height:1.3;">
         <div style="font-size:12px; font-weight:500;">${esc(s.date) || "—"}</div>
-        <div class="mono" style="font-size:11px; color:var(--muted-3);">${esc(s.time)}</div>
+        <div class="mono" style="font-size:11px; color:var(--muted-3);">${esc(s.time || "")}</div>
       </div>
       <span style="font-size:13px; color:var(--text-2);">${esc(countsLine(s.detections_by_type))}${s.reviewed ? ' <span class="badge low" style="margin-left:6px;">REVIEWED</span>' : ""}</span>
       <span class="mono" style="font-size:13px; text-align:right; color:var(--text-2);">${s.images || "—"}</span>

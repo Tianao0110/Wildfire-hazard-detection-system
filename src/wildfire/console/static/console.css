@@ -231,7 +231,7 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 
 /* scans table */
 .tbl-head, .tbl-row {
-  display: grid; grid-template-columns: 150px 150px 1fr 64px 100px 124px 170px;
+  display: grid; grid-template-columns: minmax(200px, 1.2fr) 130px 1fr 64px 100px 124px 170px;
   gap: 12px; padding: 11px 20px; align-items: center;
 }
 .tbl-head {
@@ -399,3 +399,37 @@ a:focus-visible, button:focus-visible, input:focus-visible,
   font-size: 12px; padding: 10px 16px; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.3);
   max-width: 420px;
 }
+
+/* In-page confirmation (wfConfirm in console.js) and the shortcut sheet. */
+.wf-modal-back {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(20, 24, 22, .45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.wf-modal {
+  background: var(--card); border-radius: 12px; padding: 20px 22px; width: min(440px, 100%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .25);
+}
+.wf-modal-msg { font-size: 14px; line-height: 1.5; color: var(--text); }
+.wf-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.btn-danger { background: var(--red); color: #fff; border: 1px solid var(--red); }
+.btn-danger:hover { filter: brightness(.94); }
+.kbd {
+  display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 5px; text-align: center;
+  font: 600 11px/18px var(--mono); color: var(--text-2); background: var(--bg);
+  border: 1px solid var(--border-2); box-shadow: 0 1px 0 var(--border-2);
+}
+.shortcut-sheet { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center;
+  font-size: 13px; margin-top: 12px; }
+.dirty-note { font-size: 11px; font-weight: 600; color: var(--amber-text); white-space: nowrap; }
+
+.btn-link { background: none; border: 0; padding: 0; color: var(--green); cursor: pointer; font: inherit; }
+.btn-link:hover { text-decoration: underline; }
+/* On a small laptop the review bar's sentence squeezed into a one-word column
+   and pushed Save onto a second row; the shortcut sheet carries the same help. */
+@media (max-width: 1280px) { .edit-hint-text { display: none; } }
+
+/* A run's name: the flight title, then the folder id small and quiet. */
+.run-label { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.run-title { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.run-title { color: var(--green); }
+.run-id { font: 400 10.5px var(--mono); color: var(--muted-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

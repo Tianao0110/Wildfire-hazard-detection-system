@@ -107,6 +107,10 @@ class LabelsBody(BaseModel):
     labels: dict[str, list[dict]]
 
 
+class TitleBody(BaseModel):
+    title: str = ""
+
+
 class ImageReviewBody(BaseModel):
     name: str          # image within the run
     reviewed: bool     # True = operator confirms this image, False = undo
@@ -479,6 +483,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "url": data._rel_url(str(pdf), settings.output_path),
                     "size_kb": st.st_size // 1024,
                     "created": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+                    "title": s["title"], "flown_date": s["flown_date"],
                     "severity": s["severity"], "reviewed": s["reviewed"],
                     "detections_by_type": s["detections_by_type"], "images": s["images"],
                 })
@@ -707,6 +712,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _confirmed_batch(batch, labels, run_dir)  # refresh confirmed imagery
         detail = data.scan_detail(Path(run_id).name, settings)
         return {"saved": len(records), "detail": detail}
+
+    @app.post("/api/scans/{run_id}/title")
+    def api_set_title(run_id: str, body: TitleBody):
+        """Name a run. An empty title goes back to the one built from capture time."""
+        run_dir = app.state.settings.output_path / Path(run_id).name
+        if not (run_dir / "batch.json").exists() and not (run_dir / "labels.json").exists():
+            raise HTTPException(404, f"run '{run_id}' not found")
+        title = data.write_run_title(run_dir, body.title)
+        summary = data.scan_summary(run_dir, app.state.settings) or {}
+        return {"title": summary.get("title", title), "title_custom": bool(title)}
 
     @app.post("/api/scans/{run_id}/image-reviewed")
     def api_mark_image_reviewed(run_id: str, body: ImageReviewBody):

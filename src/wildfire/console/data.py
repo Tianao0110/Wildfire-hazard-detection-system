@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Optional
 
 from ..config import Settings
+from ..gps import capture_window, flown_labels
+from ..gps import day_label as _day
 from ..types import run_absolute
 
 SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
@@ -181,6 +183,38 @@ def _rel_url(path_str: Optional[str], output_root: Path,
     return "/outputs/" + rel.as_posix()
 
 
+# ------------------------------------------------------------- run identity
+# A run used to be known everywhere by its folder name, console_20261105_191505,
+# and dated by when it was ANALYSED. A crew asks "which flight is this" and "when
+# was it flown": the folder name answers neither, and the analysis date can be
+# a year after the flight. Runs now carry a title - the operator's, from
+# run.json, or one built from the photos' capture times - and the flight's own
+# date, with the analysis time kept as secondary information.
+RUN_META = "run.json"
+TITLE_MAX = 80
+
+
+def read_run_title(run_dir: Path) -> str:
+    meta = _load_json(run_dir / RUN_META) or {}
+    return str(meta.get("title") or "").strip()[:TITLE_MAX]
+
+
+def write_run_title(run_dir: Path, title: str) -> str:
+    """Set (or, with "", clear) the operator's title for a run; returns it."""
+    title = " ".join(str(title or "").split())[:TITLE_MAX]
+    meta = _load_json(run_dir / RUN_META) or {}
+    if title:
+        meta["title"] = title
+    else:
+        meta.pop("title", None)
+    path = run_dir / RUN_META
+    if meta:
+        path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    elif path.exists():
+        path.unlink()
+    return title
+
+
 def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
     """Summarize one run folder, or None if it holds no usable run data.
 
@@ -228,8 +262,23 @@ def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
                                 for im in images[:4]) if u]
 
     mix, flame_images = _severity_mix(images, settings, run_dir)
+    window = capture_window(im.get("timestamp") for im in images)
+    flown_date, flown_time = flown_labels(window)
+    custom = read_run_title(run_dir)
+    if custom:
+        title = custom
+    elif flown_date:
+        title = f"{flown_date} \u00b7 {flown_time}" if flown_time else flown_date
+    else:  # no EXIF times at all: say honestly what the date is
+        title = f"Analysed {_day(ts)} \u00b7 {ts.strftime('%H:%M')}"
     return {
         "id": run_dir.name,
+        "title": title,
+        "title_custom": bool(custom),
+        "flown_date": flown_date,
+        "flown_time": flown_time,
+        "flown_start": window[0].isoformat(timespec="seconds") if window else None,
+        "analysed": f"{_day(ts)} \u00b7 {ts.strftime('%H:%M')}",
         "created": ts.isoformat(timespec="seconds"),
         "date": ts.strftime("%b %d, %Y"),
         "time": ts.strftime("%H:%M"),
@@ -573,7 +622,9 @@ def map_data(settings: Settings, radius_m: float = 40.0, month: str = "all") -> 
 
     sites = cluster_sites(points, radius_m)
     return {"points": len(points), "sites": sites, "radius_m": radius_m,
-            "months": months, "month": selected}
+            "months": months, "month": selected,
+            # popups name the flight, not the folder
+            "run_titles": {run["id"]: run["title"] for run in discover_scans(settings)}}
 
 
 # ------------------------------------------------------------------ dashboard
@@ -610,7 +661,9 @@ def dashboard_summary(settings: Settings) -> dict:
         "total_scans": len(scans),
         "high_risk": sev_counts["high"],
         "flagged_scans": flagged,
-        "last_scan": {"date": last["date"], "time": last["time"], "id": last["id"]} if last else None,
+        "last_scan": {"date": last["date"], "time": last["time"], "id": last["id"],
+                      "title": last["title"], "analysed": last["analysed"],
+                      "flown_date": last["flown_date"]} if last else None,
         "severity_counts": sev_counts,
         "type_totals": type_totals,
         "review": {"reviewed": reviewed_runs, "pending": pending_review},

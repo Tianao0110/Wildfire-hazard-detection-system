@@ -386,6 +386,7 @@ function buildTimePick(md) {
 
 function render(md) {
   SITES = md.sites || [];
+  window.WF_RUN_TITLES = md.run_titles || {};
   selectedSite = -1;
   const period = (!md.month || md.month === "all") ? "all time" : monthLabel(md.month);
   document.getElementById("dedup-note").textContent =

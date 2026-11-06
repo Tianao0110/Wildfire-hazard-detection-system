@@ -76,6 +76,35 @@ def _claim_macos_app_identity() -> None:
         pass
 
 
+# Preferred size, and the floor below which the layout stops working. Measured:
+# every page holds up at 1024x640 (Settings drops to one column).
+PREFERRED_SIZE = (1440, 920)
+MINIMUM_SIZE = (1024, 640)
+
+
+def _window_geometry() -> tuple[int, int, tuple[int, int]]:
+    """Window size that fits the screen it opens on, and a minimum that does too.
+
+    It used to be a fixed 1440x920 with a 1100x700 floor - larger than the
+    1366x768 panel of a typical field laptop, so the window opened partly off
+    screen and could not be shrunk to fit. Uses 92% x 90% of the primary
+    screen, capped at the preferred size; falls back to the old fixed size if
+    pywebview cannot report a screen.
+    """
+    pref_w, pref_h = PREFERRED_SIZE
+    min_w, min_h = MINIMUM_SIZE
+    try:
+        import webview
+
+        screen = webview.screens[0]
+        sw, sh = int(screen.width), int(screen.height)
+    except Exception:
+        return pref_w, pref_h, (min_w, min_h)
+    width = max(min(pref_w, int(sw * 0.92)), min(min_w, sw))
+    height = max(min(pref_h, int(sh * 0.90)), min(min_h, sh))
+    return width, height, (min(min_w, sw), min(min_h, sh))
+
+
 def run_desktop(port: int = 7861) -> None:
     import uvicorn
     import webview
@@ -91,9 +120,10 @@ def run_desktop(port: int = 7861) -> None:
     if not _wait_for_port(port):
         raise RuntimeError(f"console server did not start on port {port}")
 
+    width, height, min_size = _window_geometry()
     webview.create_window(
         APP_TITLE, f"http://127.0.0.1:{port}",
-        width=1440, height=920, min_size=(1100, 700),
+        width=width, height=height, min_size=min_size,
     )
     icon = _app_icon()
     # icon= needs pywebview 5+; older builds raise TypeError, and a missing icon

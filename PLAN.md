@@ -735,6 +735,38 @@ Repo rule: commits carry no AI signature lines.
 - [x] **States that the repository has no licence file yet**, and that it
       depends on AGPL-3.0 components, rather than choosing a licence for the team
 
+## Batch 34 - review from the keyboard, without losing it (2026-11-05)
+
+Tier 1 of a UX review done as an operator on a 1366x768 laptop.
+
+- [x] **Review is keyboard-first.** Arrows step through photos, Enter marks one
+      reviewed and moves on, 1-4 set the label, Tab walks the boxes (zooming to
+      each), Delete removes, Ctrl/Cmd+Z and Shift+Z undo and redo, Ctrl/Cmd+S
+      saves, ? shows the list. Before, the editor knew Delete and Escape and
+      nothing else, on a task that is ~3,000 boxes for a 100-photo flight - and
+      whose output is also the training set
+- [x] **Review work cannot be lost by accident.** It could: the page-letter
+      shortcuts navigated away on a single keypress mid-review, no link asked
+      first, and closing the window lost everything. Every way out now asks
+      (an in-page dialog, since the desktop webviews do not reliably show
+      `beforeunload`), the letters are off while reviewing, and each change is
+      also kept in a local draft that the run offers back on reopen. Checked in
+      the browser: edit, try to leave, leave anyway, come back, restore
+- [x] **The window fits the screen.** It opened at a fixed 1440x920 with a
+      1100x700 floor, larger than a 1366x768 field laptop; it now takes 92% x 90%
+      of the screen up to that size, with a 1024x640 floor at which every page
+      was checked. On a small laptop the review bar's help text no longer
+      squeezes Save onto a second row
+- [x] **Runs are named after their flight.** "May 2, 2025 - 14:52-14:55" from
+      capture time, or the operator's own name via *Rename* (`run.json`), on
+      every page, map popups included; the folder id stays, small. The plural
+      "1 images" went with it
+- [x] **Runs are dated by when they were flown.** Headers, the Review grouping,
+      the Dashboard card and the PDF cover now lead with the flight's date; the
+      analysis time is kept as secondary. The real runs were analysed in
+      August and November 2026 and flown on May 2, 2025
+- [x] Suite **203 -> 219**; the shortcut guard was checked against the old code
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it
