@@ -361,3 +361,15 @@ def test_number_keys_match_the_label_dropdown_order():
     select = re.search(r'<select id="label-pick"[^>]*>(.*?)</select>', html, re.S).group(1)
     options = re.findall(r"<option>([^<]+)</option>", select)
     assert keys == options
+
+
+def test_wheel_zoom_measures_where_the_frame_landed():
+    """#stage is centred in a flex box, so widening it also moves its own edge.
+    Predicting the pan from the old edge drifted every wheel step (about 530 px
+    of a 5280 px frame per step); the handler must measure after resizing."""
+    html = DETAIL_HTML.read_text(encoding="utf-8")
+    wheel = html[html.index('previewEl.addEventListener("wheel"'):]
+    wheel = wheel[:wheel.index("{ passive: false }")]
+    after = wheel[wheel.index("zoom = nz"):]
+    assert after.index("applyZoom()") < after.index("getBoundingClientRect()"), \
+        "the wheel handler must measure the stage after applying the new zoom"
