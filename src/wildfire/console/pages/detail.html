@@ -91,7 +91,7 @@
         <div class="edit-bar" id="edit-bar" style="display:none;">
           <span style="font-size:12px; font-weight:600; color:var(--green);">Review mode</span>
           <select id="label-pick" class="select">
-            <option>Dead Tree</option><option>Flame</option><option>Smoke</option><option>Fallen Log</option>
+            <option>Dead Tree</option><option>Fallen Tree</option><option>Flame</option><option>Smoke</option>
           </select>
           <button id="del-box" class="btn-quiet" style="padding:6px 10px;" disabled>Delete box</button>
           <span style="font-size:11px; color:var(--muted-2); flex:1;">
@@ -185,12 +185,13 @@ let drawing = null;
 /* Review-editor box colors. These MUST match KIND in console.js and the BGR
    constants in annotate.py — they drifted before (#E53935/#FB8C00 here vs
    #E05555/#F0A500 everywhere else), so the drawn box and the saved annotation
-   disagreed on shade. Driven off KIND now; "Fallen Log" has no KIND entry. */
+   disagreed on shade. Driven off KIND now, every type included - "Fallen Log"
+   used to be a hard-coded purple that no other surface knew about. */
 const LABEL_COLORS = {
   "Dead Tree": KIND.deadtree.color,
+  "Fallen Tree": KIND.fallen.color,
   "Flame": KIND.flame.color,
   "Smoke": KIND.smoke.color,
-  "Fallen Log": "#7C4DFF",
 };
 /* What earned the badge - phrased as "the worst image", because that is what it
    measures. SEV_NOTE is the fallback for runs with no per-image breakdown. */
@@ -303,6 +304,8 @@ previewEl.addEventListener("dblclick", resetZoom);
 function imgKind(im) {
   if ((im.counts || {})["Flame"]) return "flame";
   if ((im.counts || {})["Smoke"]) return "smoke";
+  if ((im.counts || {})["Dead Tree"]) return "deadtree";
+  if ((im.counts || {})["Fallen Tree"]) return "fallen";
   if (Object.values(im.counts || {}).reduce((a, b) => a + b, 0)) return "deadtree";
   return null;
 }
@@ -623,9 +626,12 @@ function drawImagePanel() {
 function imageSeverity(counts) {
   if (counts["Flame"]) return "high";
   const dead = counts["Dead Tree"] || 0;
+  const fallen = counts["Fallen Tree"] || 0;
   const t = DETAIL.severity_thresholds || {};
-  if (dead >= (t.high ?? 80)) return "high";
-  if (counts["Smoke"] || dead >= (t.medium ?? 45)) return "medium";
+  // Same rule as data.display_severity: a 0 threshold leaves fallen ungraded.
+  const fallenHit = thr => thr > 0 && fallen >= thr;
+  if (dead >= (t.high ?? 39) || fallenHit(t.fallen_high ?? 46)) return "high";
+  if (counts["Smoke"] || dead >= (t.medium ?? 13) || fallenHit(t.fallen_medium ?? 7)) return "medium";
   return Object.values(counts).some(v => v) ? "low" : null;
 }
 

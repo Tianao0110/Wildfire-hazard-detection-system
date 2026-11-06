@@ -313,7 +313,7 @@ export default function App() {
           </TouchableOpacity>
         ))}
         <View style={st.chipDivider} />
-        {["All", "Flame", "Smoke", "Dead Tree"].map((t) => (
+        {["All", "Flame", "Smoke", "Dead Tree", "Fallen Tree"].map((t) => (
           <TouchableOpacity key={"t" + t}
             style={[st.chip, typeFilter === t && st.chipOn]}
             onPress={() => setTypeFilter(t)}>

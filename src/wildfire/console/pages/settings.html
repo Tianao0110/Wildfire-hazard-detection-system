@@ -96,7 +96,10 @@
       <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; gap:12px;">
         <div style="font-size:13px; font-weight:600;">Display severity</div>
         <div style="font-size:11px; color:var(--muted-3);">
-          UI-only badge. Flame is always High, Smoke at least Medium; dead-tree density decides the rest.
+          UI-only badge. Flame is always High, Smoke at least Medium; standing and fallen
+          tree density each decide the rest, and the worse of the two wins. Defaults are
+          calibrated on real flights - recalibrate if you change a detector. 0 leaves fallen
+          trees ungraded.
         </div>
         <div class="form-row">
           <label for="severity_deadtrees_high">High ≥ (dead trees / image)</label>
@@ -105,6 +108,14 @@
         <div class="form-row">
           <label for="severity_deadtrees_medium">Medium ≥ (dead trees / image)</label>
           <input class="input" id="severity_deadtrees_medium" type="number" step="1" min="0.5">
+        </div>
+        <div class="form-row">
+          <label for="severity_fallen_high">High ≥ (fallen trees / image)</label>
+          <input class="input" id="severity_fallen_high" type="number" step="1" min="0">
+        </div>
+        <div class="form-row">
+          <label for="severity_fallen_medium">Medium ≥ (fallen trees / image)</label>
+          <input class="input" id="severity_fallen_medium" type="number" step="1" min="0">
         </div>
       </div>
 
@@ -283,7 +294,7 @@
 renderNav("settings");
 const FIELDS = ["operator_name", "conf_threshold", "slice_size", "overlap_ratio",
                 "preprocess_max_mb", "severity_deadtrees_high",
-                "severity_deadtrees_medium", "lmstudio_url", "lmstudio_model", "language",
+                "severity_deadtrees_medium", "severity_fallen_high", "severity_fallen_medium", "lmstudio_url", "lmstudio_model", "language",
                 "report_max_image_pages", "report_detail_pages", "cloud_upload_mode",
                 "onnx_input_size", "onnx_normalize", "onnx_channel_order", "onnx_nms_iou",
                 "source_dir", "output_dir",

@@ -198,8 +198,13 @@ outputs/<run>_<timestamp>/
   belong in a document handed to a client. Runs predating `machine` show the
   device under the honest label "Compute device" rather than faking a host name.
 - **Map/box colors encode hazard TYPE**: flame red `#E05555`, smoke slate
-  `#546E7A`, dead tree bone `#D9CDB0`, and each type also carries an icon
-  (flame / puff / bare trunk) so color is never the only channel. Severity
+  `#546E7A`, dead tree bone `#D9CDB0`, fallen tree sky blue `#29B6F6`, and each
+  type also carries an icon (flame / puff / bare trunk / diagonal log) so color
+  is never the only channel. No fifth colour can reach 3:1 luminance contrast
+  against all of the first three - slate is dark and bone is light - so sky blue
+  is separated by hue: its nearest neighbour under simulated deuteranopia and
+  protanopia is dE 40+, wider than the existing flame/bone pair (30.1).
+  `tests/test_fallen_trees.py` checks the fallen colour in all four places. Severity
   badges are a separate axis; do not merge the two color systems. Smoke and
   dead tree were orange and yellow until a client review: only 1.48:1 apart,
   below WCAG's 3:1 for graphics and identical under red-green colorblindness.
@@ -360,6 +365,23 @@ outputs/<run>_<timestamp>/
     anywhere GDAL/rasterio touched the files - Windows will not delete a file
     something still holds open, and an undeletable temp dir must not fail a job.
 
+17. **Measure a change through the path the operator uses, not a shortcut.**
+    GSD-aware detection (gotcha 13) was built, measured and documented on the
+    ORIGINAL photo path - and never fired in a real job. Every DJI frame is over
+    the 2 MB pre-compression limit, so the pipeline hands detectors a re-encoded
+    copy, and cv2 writes pixels only: no EXIF, no XMP, no ground resolution, so
+    the crown model silently stayed at native scale on every real flight. The
+    copy now carries the original's APP1 segments verbatim
+    (`pipeline._app1_segments`). The lesson is general: a number measured by
+    calling a function directly says nothing about the product until it has
+    been reproduced through `run_batch` or the console's detect job.
+18. **A settings file that lists something must not freeze the list.**
+    `settings.json` holding `model_sources` used to REPLACE the defaults, so a
+    model added in a release could never reach an existing install - and the
+    Settings toggle for a model did nothing once its `.pt` was in `models/`,
+    because every `.pt` there is swept up. New defaults are appended by key; a
+    switched-off source is skipped even if its file is present.
+
 ---
 
 ## 8. Verification habits
@@ -378,7 +400,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 190 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 203 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the

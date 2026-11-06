@@ -171,10 +171,14 @@ Everything is local; nothing is uploaded anywhere.
 - Overlapping flight photos re-shoot the same trees; the map merges images
   within 40 m into one *site*, but raw detection counts still contain overlap.
   Full de-duplication (orthomosaic pipeline) is on the roadmap.
-- **Only standing trees with a crown are found.** The detector locates tree
-  crowns and then judges each one alive or dead, so a snag that has already lost
-  its crown, and any tree lying on the ground, are invisible to it — downed wood
-  is fuel, and this system does not map it.
+- **Fallen trees are found by a second model, and one log may appear as several
+  pieces.** Standing dead trees come from a crown model, which cannot see a tree
+  lying on the ground; fallen trees (sky-blue boxes and pins) come from a deadwood
+  model trained in Finnish boreal forest. A long log is often reported as two to
+  four short boxes, so treat the fallen count as "how much downed wood", not a
+  count of trees.
+- **A standing dead tree that has lost its crown is often missed.** The crown
+  model needs a crown to find.
 - **The box covers the crown, not the tree.** Photos are taken straight down, so
   the trunk sits underneath its own crown and is not in the picture. A whole-tree
   outline needs oblique photos or the LiDAR payload, not a better model.

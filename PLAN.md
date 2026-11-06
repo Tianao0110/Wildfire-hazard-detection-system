@@ -668,6 +668,73 @@ Repo rule: commits carry no AI signature lines.
       redistributable. (One frame, `1.JPG`, remains in the history from an early
       upload - see the open item below.)
 
+## Batch 32 - fallen trees, and the scale fix finally reaching real jobs (2026-11-05)
+
+- [x] **Fallen trees are a hazard type of their own.** The crown model cannot see a
+      tree lying on the ground - there is no crown - and downed wood is surface
+      fuel. A second detector, YOLOv8 deadwood (Mayra et al. 2025, Remote Sensing
+      of Environment 329, 114906; AGPL-3.0, as is Ultralytics), is a new default
+      `model_sources` entry. Only its fallen class is kept: its standing class
+      found ~2 per frame and would double count the crown model. Sky blue
+      `#29B6F6` with a diagonal-log icon, in all four palette places, the map
+      filter, the review editor, the PDF legend and the mobile type filter. The
+      legacy annotator's unwired "Fallen Log" label was folded into it
+- [x] **Per-source detector options**: `target_gsd_cm`, `slice_size`, `merge_ios`
+      and `class_map` on `ModelSource`. The deadwood model runs at 4.5 cm/px on
+      640 px tiles (its training setup) and merges tiles at IOS 0.2 as its
+      authors do; a loose `.pt` with no entry behaves exactly as before
+- [x] **GSD-aware detection had never run in a real job.** Batch 27 was measured
+      on the original photo path. Every DJI frame is over the 2 MB
+      pre-compression limit, so detectors receive a re-encoded copy, and cv2
+      wrote it without EXIF or XMP - no ground resolution, so the crown model
+      stayed at native scale on every real flight and batch 27's 28.4 s -> 5.3 s
+      never happened outside a test. The copy now carries the original's APP1
+      segments verbatim; the calibration run's log confirms
+      `1.9 cm/px -> resampled to 4.0 cm/px` through `run_batch`
+- [x] **Severity recalibrated on 49 real frames** through the full pipeline, at
+      ~p22 / p85 as before. Dead trees 80 / 45 -> **39 / 13** (2..55 per frame,
+      median 20 now that the crown model sees its training scale; 80 / 45 would
+      have graded nearly everything Low). Fallen trees, a ladder of their own,
+      **46 / 7** (3..109, median 17). The worse ladder wins. Both are editable on
+      the Settings page. Across those 49 fire-free frames the 0.60 floor still
+      let through 3 false flames and 2 false smokes
+- [x] **Three older defects found while wiring it in**: a `settings.json` that
+      listed `model_sources` replaced the defaults, so no new model could reach
+      an existing install (defaults are now appended by key); the Settings
+      toggle for a model did nothing once its `.pt` sat in `models/` (switched-
+      off sources are now skipped); and the per-frame severity mix read raw
+      proposals, so a flame deleted in review still coloured it
+- [x] **A map site lists every type it holds**, and the filter shows it if any
+      of them is selected. A frame with dead AND fallen trees used to carry only
+      "deadtree", so filtering to fallen trees hid exactly those frames - the
+      same was already true of smoke next to flame
+- [x] **A pin takes the colour of the most critical SELECTED type.** Coloured by
+      the most critical type overall, every site holding dead trees as well stayed
+      bone with only "Fallen Tree" selected. Markers are re-dressed in place on a
+      filter change (icon pins and the canvas circles past 500 sites); checked in
+      the browser: 25 sites, fallen-only shows 10, all blue, restore returns them
+- [x] **The fallen thresholds are on the Settings page**, beside the dead-tree pair
+- [x] **The PDF footer and title said "Wildfire Hazardous Tree Mapping System"**
+      on every page whatever the branding, because both were fixed strings; they
+      follow `brand.json` now like the banner and the cover
+- [x] Suite **190 -> 203** tests; the metadata splice and the default-source
+      merge were each checked against a deliberately broken copy
+
+## Batch 33 - a README for people outside the team (2026-11-05)
+
+- [x] **Rewritten for a reader who has never seen the project**: what it is and
+      why, a tour with screenshots of every page and the PDF, a pipeline diagram,
+      an honest "what it cannot do" section, setup, a field workflow, structure,
+      configuration with the calibrated defaults, team and credits. The detailed
+      operator and maintainer material stays in MANUAL / TEAM_GUIDE / AGENTS
+- [x] **Screenshots in `docs/screenshots/`** (1.5 MB in all), captured from the
+      running console at 2x with an offscreen WKWebView and from the generated
+      PDF with Quartz. They show the development imagery, which the capstone
+      agreement allows to be displayed but not redistributed - downscaled frames
+      in a UI, not the data itself
+- [x] **States that the repository has no licence file yet**, and that it
+      depends on AGPL-3.0 components, rather than choosing a licence for the team
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

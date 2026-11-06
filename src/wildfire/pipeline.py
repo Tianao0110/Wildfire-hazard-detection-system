@@ -29,6 +29,33 @@ ProgressFn = Optional[Callable[[int, int, str], None]]
 JPEG_QUALITY = 88
 
 
+def _app1_segments(path: Path) -> list[bytes]:
+    """The APP1 segments (EXIF and XMP) of a JPEG, verbatim; [] for anything else."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return []
+    if data[:2] != b"\xff\xd8":
+        return []
+    out, i = [], 2
+    while i + 4 <= len(data) and data[i] == 0xFF:
+        marker = data[i + 1]
+        if marker in (0xDA, 0xD9):  # start of scan / end of image: no more headers
+            break
+        length = int.from_bytes(data[i + 2:i + 4], "big")
+        if marker == 0xE1:
+            out.append(data[i:i + 2 + length])
+        i += 2 + length
+    return out
+
+
+def _with_metadata(jpeg: bytes, segments: list[bytes]) -> bytes:
+    """Splice APP1 segments in right after SOI - where EXIF is required to sit."""
+    if not segments or jpeg[:2] != b"\xff\xd8":
+        return jpeg
+    return jpeg[:2] + b"".join(segments) + jpeg[2:]
+
+
 def _detection_source(path: Path, rgb: np.ndarray, cache_dir: Path, max_mb: float = 0.0) -> str:
     """Path to feed the detectors.
 
@@ -49,10 +76,18 @@ def _detection_source(path: Path, rgb: np.ndarray, cache_dir: Path, max_mb: floa
         cv2.imwrite(str(out), bgr)
         return str(out)
     out = cache_dir / f"{path.stem}_det.jpg"
+    # cv2 writes pixels only, and the detectors read EXIF/XMP off this copy:
+    # DeepForest and the deadwood model compute the ground resolution from it
+    # to pick their scale. A bare copy made GSD-aware detection silently fall
+    # back to native scale on every real 9 MB DJI frame - the original carried
+    # 1.51 cm/px, this copy carried nothing. The metadata goes across verbatim;
+    # the pixels are not orientation-corrected, so the Orientation tag still
+    # describes them truthfully.
+    meta = _app1_segments(path)
     for quality in (85, 75, 65, 55, 45):
         ok, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
         if ok and (buf.nbytes <= limit or quality == 45):
-            out.write_bytes(buf.tobytes())
+            out.write_bytes(_with_metadata(buf.tobytes(), meta))
             break
     return str(out)
 

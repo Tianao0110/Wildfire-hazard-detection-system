@@ -108,7 +108,10 @@ class _NumberedCanvas(canvas_mod.Canvas):
         w, _ = PAGE
         self.setFont("Helvetica", 8)
         self.setFillColor(colors.grey)
-        self.drawString(0.6 * inch, 0.4 * inch, "Wildfire Hazardous Tree Mapping System")
+        # the deployment's name, like the banner and the cover - it was a fixed
+        # string, so a rebranded report still signed every page with the old one
+        self.drawString(0.6 * inch, 0.4 * inch,
+                        _pdf_safe(_BRAND.get("name") or "Wildfire Hazardous Tree Mapping"))
         self.drawRightString(w - 0.6 * inch, 0.4 * inch, f"Page {self._pageNumber} of {total}")
 
 
@@ -329,7 +332,8 @@ def _cover(batch: BatchResult) -> list:
         ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story += [t, Spacer(1, 0.3 * inch),
-              Paragraph("Legend: flame = red, smoke = dark slate, dead tree = bone white.",
+              Paragraph("Legend: flame = red, smoke = dark slate, dead tree = bone white, "
+                        "fallen tree = sky blue.",
                         _SMALL),
               PageBreak()]
     return story
@@ -476,6 +480,9 @@ MAP_W, MAP_H = 900, 540
 FLAME_RGB = (224, 85, 85)       # #E05555
 SMOKE_RGB = (84, 110, 122)      # #546E7A
 DEADTREE_RGB = (217, 205, 176)  # #D9CDB0
+# Fallen tree is separated from the three above by hue, not luminance - no
+# colour reaches 3:1 against all of them (see annotate.py) - plus its own icon.
+FALLEN_RGB = (41, 182, 246)     # #29B6F6
 CLEAR_RGB = (58, 154, 58)       # no detections
 
 
@@ -544,7 +551,8 @@ def _pin_map_png(batch: BatchResult, assets: Path,
                  map_dir: Optional[Path] = None) -> Optional[Path]:
     """Hazard map for the summary page: REAL offline satellite tiles when the
     area is cached (same imagery as the console map), else a light schematic.
-    One pin per GPS-tagged image: flame red, smoke slate, dead tree bone.
+    One pin per GPS-tagged image: flame red, smoke slate, dead tree bone,
+    fallen tree sky blue - the most critical type in the frame.
     """
     from PIL import Image as PILImage
     from PIL import ImageDraw
@@ -556,6 +564,8 @@ def _pin_map_png(batch: BatchResult, assets: Path,
         names = {d.display for d in im.detections}
         color = (FLAME_RGB if "Flame" in names else
                  SMOKE_RGB if "Smoke" in names else
+                 DEADTREE_RGB if "Dead Tree" in names else
+                 FALLEN_RGB if "Fallen Tree" in names else
                  DEADTREE_RGB if im.detections else CLEAR_RGB)
         pts.append((float(im.gps[0]), float(im.gps[1]), color))
     if not pts:
@@ -600,9 +610,11 @@ def _pin_map_png(batch: BatchResult, assets: Path,
     # readable chrome over imagery: white boxes behind title + legend
     d.rectangle([8, 6, 8 + 8 * len(title) // 1 + 16, 26], fill=(255, 255, 255))
     d.text((16, 10), title, fill=(60, 60, 55))
-    legend = [("Flame", FLAME_RGB), ("Smoke", SMOKE_RGB),
-              ("Dead tree", DEADTREE_RGB), ("No detections", CLEAR_RGB)]
-    d.rectangle([8, H - 34, 470, H - 8], fill=(255, 255, 255))
+    legend = [("Flame", FLAME_RGB), ("Smoke", SMOKE_RGB), ("Dead tree", DEADTREE_RGB),
+              ("Fallen tree", FALLEN_RGB), ("No detections", CLEAR_RGB)]
+    # sized from the entries, so adding a type cannot overflow the box again
+    width = 16 + sum(18 + 7 * len(label) + 22 for label, _ in legend)
+    d.rectangle([8, H - 34, 8 + width, H - 8], fill=(255, 255, 255))
     x = 16
     for label, color in legend:
         d.ellipse([x, H - 27, x + 12, H - 15], fill=color, outline=(70, 70, 64))
@@ -629,6 +641,7 @@ def _summary_page(batch: BatchResult, ai_text: Optional[str], assets: Path,
         ["Mean detections / image", s.get("mean_detections_per_image", 0)],
         ["By type", _fmt_counts(s.get("detections_by_type", {}))],
         ["Images with dead trees", s.get("images_with_deadtree", 0)],
+        ["Images with fallen trees", s.get("images_with_fallen", 0)],
         ["Images with flame / smoke",
          f"{s.get('images_with_flame', 0)} / {s.get('images_with_smoke', 0)}"],
         ["Images with GPS", s.get("images_with_gps", 0)],
@@ -730,7 +743,7 @@ def build_report(
         str(out_path), pagesize=PAGE,
         leftMargin=0.6 * inch, rightMargin=0.6 * inch,
         topMargin=0.7 * inch, bottomMargin=0.6 * inch,
-        title="Wildfire Hazardous Tree Mapping - Field Report",
+        title=_pdf_safe(f"{_BRAND.get('name') or 'Wildfire Hazardous Tree Mapping'} - Field Report"),
     )
     picked, cap_note = select_image_pages(batch, max_image_pages)
     # Reader order: what this is -> what it found -> the evidence behind it.

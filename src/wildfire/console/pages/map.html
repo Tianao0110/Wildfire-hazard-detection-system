@@ -113,7 +113,7 @@ const PARAMS = new URLSearchParams(location.search);
    about what the operator is hunting), applied to the markers AND the site
    list — the two are views of one set and must agree. */
 const activeKinds = loadKindFilter();
-const siteVisible = s => activeKinds.has(kindKey(s.kind));
+const siteVisible = s => siteKinds(s).some(k => activeKinds.has(k));
 
 function drawKindFilter() {
   document.getElementById("kind-filter").innerHTML = kindFilterHtml(activeKinds);
@@ -143,6 +143,7 @@ function applyKindFilter() {
     selectedSite = -1;   // the selected pin just got hidden — removing its marker closes its popup
   }
   if (LMAP) {
+    recolorSiteMarkers(LMAP, SITES, activeKinds);
     SITES.forEach((s, i) => {
       if (siteVisible(s)) LMAP.markers[i].addTo(LMAP.map);
       else LMAP.map.removeLayer(LMAP.markers[i]);
@@ -159,7 +160,8 @@ function initFallback() {
   /* Project ALL sites, then drop the hidden kinds: the bounding box stays put,
      so pins don't jump around when a type is toggled. Ids stay positions in
      SITES, so selection and the site list keep pointing at the right site. */
-  const pins = gpsToPercent(SITES.map((s, i) => ({ ...s, id: String(i) }))).filter(siteVisible);
+  const pins = gpsToPercent(SITES.map((s, i) => ({ ...s, id: String(i), kind: shownKind(s, activeKinds) })))
+    .filter(siteVisible);
   let html = terrainSvg("wfm") + '<div class="map-grid-overlay"></div>';
   for (const p of pins) html += fallbackPinHtml(p, selectedSite === +p.id);
   const sel = pins.find(p => +p.id === selectedSite);

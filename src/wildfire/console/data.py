@@ -37,26 +37,46 @@ SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
 
 
 def display_severity(counts_by_type: dict, image_count: int,
-                     dead_high: float = 80.0, dead_medium: float = 45.0) -> Optional[str]:
+                     dead_high: float = 39.0, dead_medium: float = 13.0,
+                     fallen_high: float = 46.0, fallen_medium: float = 7.0) -> Optional[str]:
     """UI-only severity: dead-tree density ladder with flame/smoke escalation.
 
-    Thresholds are calibrated, not guessed: real frames hold 27..102 dead trees
-    (median 60), so the original 10 / 3 graded everything High. 80 / 45 are about
-    the 85th and 22nd percentiles. Recalibrate when the detector changes.
+    Thresholds are calibrated, not guessed, at about the 85th and 22nd
+    percentile of real frames. History: 10 / 3 graded everything High; 80 / 45
+    fitted the crown model at native scale (27..102 per frame, median 60); since
+    it sees frames at its training scale a frame holds 2..55 (median 20), hence
+    39 / 13. Fallen trees: 3..109 per frame (median 17), hence 46 / 7.
+    Recalibrate when a detector changes.
     """
     if counts_by_type.get("Flame"):
         return "high"
-    dead_per_image = counts_by_type.get("Dead Tree", 0) / max(1, image_count)
-    if dead_per_image >= dead_high:
+    n = max(1, image_count)
+    dead_per_image = counts_by_type.get("Dead Tree", 0) / n
+    # Fallen trees are surface fuel and grade on their own ladder - their counts
+    # run on a different scale from standing dead trees, so sharing one
+    # threshold would make either ladder meaningless. 0 leaves them ungraded.
+    fallen_per_image = counts_by_type.get("Fallen Tree", 0) / n
+    fallen_hit = lambda thr: thr > 0 and fallen_per_image >= thr
+    if dead_per_image >= dead_high or fallen_hit(fallen_high):
         return "high"
-    if counts_by_type.get("Smoke") or dead_per_image >= dead_medium:
+    if counts_by_type.get("Smoke") or dead_per_image >= dead_medium or fallen_hit(fallen_medium):
         return "medium"
     if sum(counts_by_type.values()):
         return "low"
     return None
 
 
-def _severity_mix(images: list[dict], settings: Settings) -> tuple[dict, int]:
+def severity_args(settings: Settings) -> dict:
+    """The thresholds display_severity takes, from Settings - one place, so the
+    run badge, the per-image mix, the map and the detail page cannot disagree."""
+    return {"dead_high": settings.severity_deadtrees_high,
+            "dead_medium": settings.severity_deadtrees_medium,
+            "fallen_high": settings.severity_fallen_high,
+            "fallen_medium": settings.severity_fallen_medium}
+
+
+def _severity_mix(images: list[dict], settings: Settings,
+                  run_dir: Optional[Path] = None) -> tuple[dict, int]:
     """Grade each frame separately: how many high / medium / low / clear.
 
     A run badge can only report its worst frame, and that is the right answer to
@@ -65,16 +85,18 @@ def _severity_mix(images: list[dict], settings: Settings) -> tuple[dict, int]:
     high, 28 medium and 16 low. Showing the mix beside the badge is what stops
     "flame in 6 images" from looking like "58 bad images".
     """
-    hi, med = settings.severity_deadtrees_high, settings.severity_deadtrees_medium
+    args = severity_args(settings)
+    # Grade what the operator SEES: the review verdict where there is one. This
+    # read raw proposals, so a flame deleted in review still coloured the mix.
+    confirmed, covered = review_verdict(run_dir) if run_dir is not None else ({}, None)
     mix = {"high": 0, "medium": 0, "low": 0, "none": 0}
     flame_images = 0
     for im in images:
-        counts: dict[str, int] = {}
-        for d in im.get("detections") or []:
-            counts[d.get("display", "?")] = counts.get(d.get("display", "?"), 0) + 1
+        counts = _count_types(boxes_for(im.get("path"), im.get("detections") or [],
+                                        confirmed, covered))
         if counts.get("Flame"):
             flame_images += 1
-        mix[display_severity(counts, 1, hi, med) or "none"] += 1
+        mix[display_severity(counts, 1, **args) or "none"] += 1
     return mix, flame_images
 
 
@@ -205,7 +227,7 @@ def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
         previews = [u for u in (_rel_url(im.get("annotated_path"), output_root, run_dir)
                                 for im in images[:4]) if u]
 
-    mix, flame_images = _severity_mix(images, settings)
+    mix, flame_images = _severity_mix(images, settings, run_dir)
     return {
         "id": run_dir.name,
         "created": ts.isoformat(timespec="seconds"),
@@ -216,9 +238,7 @@ def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
         "total_detections": sum(counts.values()),
         # The WORST frame in the run, not a verdict on the run. `severity_mix`
         # carries the rest; see _severity_mix for why both are needed.
-        "severity": display_severity(counts, image_count,
-                                     settings.severity_deadtrees_high,
-                                     settings.severity_deadtrees_medium),
+        "severity": display_severity(counts, image_count, **severity_args(settings)),
         "severity_mix": mix,
         "flame_images": flame_images,
         "reviewed": reviewed,
@@ -317,7 +337,9 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
         # Sent so the page can grade a single frame with the same ladder the
         # server used, instead of hardcoding numbers that drift from Settings.
         "severity_thresholds": {"high": settings.severity_deadtrees_high,
-                                "medium": settings.severity_deadtrees_medium},
+                                "medium": settings.severity_deadtrees_medium,
+                                "fallen_high": settings.severity_fallen_high,
+                                "fallen_medium": settings.severity_fallen_medium},
     })
     return summary
 
@@ -400,7 +422,19 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-KIND_ORDER = {"flame": 3, "smoke": 2, "deadtree": 1}
+KIND_ORDER = {"flame": 4, "smoke": 3, "deadtree": 2, "fallen": 1}
+_KIND_BY_DISPLAY = {"Flame": "flame", "Smoke": "smoke", "Dead Tree": "deadtree",
+                    "Fallen Tree": "fallen"}
+
+
+def kinds_present(counts: dict) -> list[str]:
+    """Every hazard type in a frame, most critical first. A frame holding dead
+    AND fallen trees used to carry only "deadtree", so filtering the map to
+    fallen trees hid exactly the frames that had them."""
+    kinds = {_KIND_BY_DISPLAY[k] for k, v in counts.items() if v and k in _KIND_BY_DISPLAY}
+    if not kinds and sum(counts.values()):
+        kinds = {"deadtree"}  # an unmapped class keeps the old fallback
+    return sorted(kinds, key=lambda k: -KIND_ORDER[k])
 
 _M_PER_DEG_LAT = 111320.0
 
@@ -451,7 +485,8 @@ def cluster_sites(points: list[dict], radius_m: float = 40.0) -> list[dict]:
                         best = idx
         if best is None:
             sites.append({"lat": plat, "lon": plon, "severity": p["severity"],
-                          "kind": p.get("kind", "deadtree"), "count": 0, "members": []})
+                          "kind": p.get("kind", "deadtree"), "kinds": [], "count": 0,
+                          "members": []})
             best = len(sites) - 1
             start = cell(plat, plon)
             buckets[start].append(best)
@@ -465,6 +500,10 @@ def cluster_sites(points: list[dict], radius_m: float = 40.0) -> list[dict]:
             target["severity"] = p["severity"]
         if KIND_ORDER.get(p.get("kind"), 0) > KIND_ORDER.get(target["kind"], 0):
             target["kind"] = p["kind"]  # most critical hazard type wins the marker color
+        for k in p.get("kinds") or [p.get("kind", "deadtree")]:
+            if k not in target["kinds"]:
+                target["kinds"].append(k)
+        target["kinds"].sort(key=lambda k: -KIND_ORDER.get(k, 0))
         target["members"].append({k: p[k] for k in ("run_id", "name", "severity", "thumb")
                                   if k in p})
         # The centroid just moved; re-index if it drifted into another cell,
@@ -510,12 +549,12 @@ def map_data(settings: Settings, radius_m: float = 40.0, month: str = "all") -> 
             if not dets or not im.get("gps"):
                 continue
             counts = _count_types(dets)
-            sev = display_severity(counts, 1, settings.severity_deadtrees_high,
-                                   settings.severity_deadtrees_medium)
-            kind = ("flame" if counts.get("Flame") else
-                    "smoke" if counts.get("Smoke") else "deadtree")
+            sev = display_severity(counts, 1, **severity_args(settings))
+            kinds = kinds_present(counts)
+            kind = kinds[0] if kinds else "deadtree"
             points.append({"lat": float(im["gps"][0]), "lon": float(im["gps"][1]),
-                           "severity": sev or "low", "kind": kind, "run_id": run["id"],
+                           "severity": sev or "low", "kind": kind, "kinds": kinds,
+                           "run_id": run["id"],
                            "name": im.get("name"), "month": _point_month(im, run),
                            "thumb": _rel_url(im.get("annotated_path"), root,
                                              root / run["id"])})

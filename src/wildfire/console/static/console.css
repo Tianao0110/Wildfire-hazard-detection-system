@@ -34,6 +34,7 @@
   --kind-flame: #E05555;
   --kind-smoke: #546E7A;
   --kind-deadtree: #D9CDB0;
+  --kind-fallen: #29B6F6;   /* separated by hue + icon: see KIND in console.js */
   /* Bone is 1.58:1 against a white card, so it always needs this outline. */
   --kind-outline: #6b6459;
 }
@@ -355,6 +356,7 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 .thumb.k-flame    { border: 2px solid var(--kind-flame); }
 .thumb.k-smoke    { border: 2px solid var(--kind-smoke); }
 .thumb.k-deadtree { border: 2px solid var(--kind-deadtree); box-shadow: 0 0 0 1px var(--kind-outline); }
+.thumb.k-fallen   { border: 2px solid var(--kind-fallen); box-shadow: 0 0 0 1px var(--kind-outline); }
 .thumb-check {
   position: absolute; top: -6px; right: -6px; width: 16px; height: 16px;
   border-radius: 50%; background: var(--green-2); color: #fff;

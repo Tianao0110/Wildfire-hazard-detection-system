@@ -19,13 +19,21 @@ from .types import Detection
 # Smoke and dead tree used to be orange and yellow, only 1.48:1 apart and
 # indistinguishable to red-green colorblind eyes; slate vs bone is 3.42:1.
 # Keep in sync with KIND in console/static/console.js and :root in console.css.
+# Fallen tree is sky blue #29B6F6. No colour can reach 3:1 luminance contrast
+# against all three of the others - slate is dark and bone is light, and the
+# band between them is too narrow from both sides - so it is separated by HUE:
+# under simulated deuteranopia and protanopia its smallest distance to any of
+# them is dE 40+, wider than the existing flame/bone pair (30.1). It also has
+# its own icon (a log lying diagonally), so colour is never the only channel.
 DEADTREE_COLOR = (176, 205, 217)  # #D9CDB0
+FALLEN_COLOR = (246, 182, 41)     # #29B6F6
 FLAME_COLOR = (85, 85, 224)       # #E05555
 SMOKE_COLOR = (122, 110, 84)      # #546E7A
 OTHER_COLOR = (0, 255, 0)
 
 COLOR_BY_DISPLAY = {
     "Dead Tree": DEADTREE_COLOR,
+    "Fallen Tree": FALLEN_COLOR,
     "Flame": FLAME_COLOR,
     "Smoke": SMOKE_COLOR,
 }

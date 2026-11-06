@@ -132,6 +132,8 @@ _EDITABLE_SETTINGS: dict = {
     "perform_standard_pred": bool,
     "severity_deadtrees_high": lambda v: max(0.1, float(v)),
     "severity_deadtrees_medium": lambda v: max(0.1, float(v)),
+    "severity_fallen_high": lambda v: max(0.0, float(v)),
+    "severity_fallen_medium": lambda v: max(0.0, float(v)),
     "class_conf_thresholds": lambda v: {
         str(k): max(0.0, min(0.99, float(x)))
         for k, x in (v or {}).items() if isinstance(x, (int, float, str))

@@ -176,6 +176,27 @@ def ground_sample_distance_cm(path: str | Path) -> Optional[float]:
     return (36.0 / f35) * height / width * 100.0
 
 
+# Below this there is nothing worth resampling for, and resampling UP is never
+# right: it invents detail the sensor did not record.
+MIN_DOWNSCALE = 1.2
+
+
+def downscale_factor(path: str | Path, target_cm: float) -> float:
+    """How much to shrink a frame so it lands near `target_cm` ground resolution.
+
+    1.0 means "leave it alone": no target, a GSD the EXIF cannot give (guessing
+    a scale is worse than the one actually flown), or a frame already within
+    MIN_DOWNSCALE of the target or coarser than it.
+    """
+    if not target_cm or target_cm <= 0:
+        return 1.0
+    gsd = ground_sample_distance_cm(path)
+    if not gsd or gsd <= 0:
+        return 1.0
+    factor = target_cm / gsd
+    return factor if factor >= MIN_DOWNSCALE else 1.0
+
+
 def extract_timestamp(path: str | Path) -> Optional[str]:
     """Best-effort capture time: DateTimeOriginal, else GPS date stamp."""
     try:
