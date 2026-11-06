@@ -382,10 +382,17 @@ previewEl.addEventListener("wheel", e => {
   if (nz === zoom) return;
   const u = (e.clientX - rect.left) / zoom;  // cursor point in content coords
   const v = (e.clientY - rect.top) / zoom;
-  panX -= u * (nz - zoom);
-  panY -= v * (nz - zoom);
   zoom = nz;
-  if (zoom === 1) { panX = panY = 0; }
+  if (zoom === 1) { panX = panY = 0; applyZoom(); return; }
+  // Keep that point under the cursor by MEASURING where the frame lands, not
+  // by predicting it. #stage is centred in a flex box, so a wider stage also
+  // moves its own left/top edge by half the growth; the old arithmetic assumed
+  // the edge stayed put (true of the transform zoom it was written for) and
+  // every wheel step drifted the view toward the top-right.
+  applyZoom();
+  const now = st.getBoundingClientRect();
+  panX += (e.clientX - u * zoom) - now.left;
+  panY += (e.clientY - v * zoom) - now.top;
   applyZoom();
 }, { passive: false });
 

@@ -343,7 +343,7 @@ If the exported model returns empty or garbled boxes, flip `onnx_normalize` or
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # 246 tests; heavy model tests skip themselves when weights are absent
+pytest -q          # 247 tests; heavy model tests skip themselves when weights are absent
 ```
 
 The suite runs on Windows and macOS. Tests that protect a fix were checked against a

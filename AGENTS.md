@@ -351,7 +351,10 @@ outputs/<run>_<timestamp>/
     closely at detail the browser had already thrown away. Zoom is an explicit
     width on `#stage` now. Two traps if you touch it: `#stage` is a flex item,
     so it needs `flex: none` or flex-shrink silently squashes the width back
-    down; and the fit-to-box `max-height` has to be lifted while zoomed.
+    down; and the fit-to-box `max-height` has to be lifted while zoomed. A
+    third: `#stage` is centred, so a wider stage moves its own left/top edge
+    too, and wheel zoom drifted off the cursor (~530 px of the frame per step)
+    until the handler measured where the stage landed instead of predicting it.
 
 16. **Absoluteness is not portable, and this project ships on two platforms.**
     `Path("/Users/h/x.jpg").is_absolute()` is False on Windows - no drive - and
@@ -428,7 +431,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 246 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 247 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`; `jobs.py` and `desktop.py` are covered
   for their logic (time left, finish hooks, notifications, window placement)
