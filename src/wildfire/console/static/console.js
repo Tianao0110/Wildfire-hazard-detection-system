@@ -263,10 +263,18 @@ function wfConfirm(message, { ok = "OK", cancel = "Cancel", danger = false } = {
   });
 }
 
-function toast(msg, ms = 5000) {
+function toast(msg, ms = 5000, link = null) {
   const t = document.createElement("div");
   t.className = "toast";
   t.textContent = msg;
+  if (link) {
+    const a = document.createElement("a");
+    a.className = "toast-link";
+    a.href = link.href;
+    a.textContent = link.text;
+    a.addEventListener("click", e => { e.preventDefault(); wfNavigate(link.href); });
+    t.appendChild(a);
+  }
   document.body.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
@@ -343,12 +351,119 @@ document.addEventListener("keydown", e => {
       ${tab("settings", "Settings", "/settings", "e")}
     </div>
     <div class="nav-right">
+      <a class="job-pill" id="job-pill" href="/scans" hidden></a>
+      <button type="button" class="nav-help" title="Keyboard shortcuts (press ?)"
+              aria-label="Keyboard shortcuts" onclick="wfShowShortcuts()">?</button>
       <div class="live" id="live-status" title="Detection and reports always run on this machine.">
         <span class="live-dot"></span><span class="mono">Local</span>
       </div>
     </div>`;
   refreshStatus();
+  pollJobs();
 }
+
+/* ------------------------------------------------------------- job progress
+   Detection used to be visible only on the Scans page, which the operator
+   leaves for the 20 minutes a flight takes. Every page's header now carries a
+   pill with progress and time left, and the page says when a job ends - even
+   one that ended while another page was open (the ids seen running are kept for
+   the tab's session). The desktop window adds a system notification. */
+const JOBS_SEEN = "wf.jobsSeen", JOBS_TOLD = "wf.jobsTold";
+let _jobPoll = null;
+
+function _sessionSet(key) {
+  try { return new Set(JSON.parse(sessionStorage.getItem(key) || "[]")); } catch (e) { return new Set(); }
+}
+function _sessionSave(key, set) {
+  try { sessionStorage.setItem(key, JSON.stringify([...set].slice(-50))); } catch (e) { /* private mode */ }
+}
+
+function fmtDuration(s) {
+  if (s == null) return "";
+  if (s < 60) return "under a minute";
+  const m = Math.round(s / 60);
+  if (m < 60) return `about ${m} min`;
+  return `about ${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+function jobProgressText(j) {
+  if (!j.total || !j.done) return "Detection starting\u2026";
+  const left = j.eta_s != null ? ` \u00b7 ${fmtDuration(j.eta_s)} left` : "";
+  return `Detecting ${j.done}/${j.total}${left}`;
+}
+
+async function pollJobs() {
+  clearTimeout(_jobPoll);
+  let jobs = [];
+  try { jobs = (await api("/api/jobs")).jobs || []; } catch (e) { /* server restarting */ }
+  const active = jobs.filter(j => j.state === "queued" || j.state === "running");
+  const seen = _sessionSet(JOBS_SEEN), told = _sessionSet(JOBS_TOLD);
+  active.forEach(j => seen.add(j.id));
+
+  const pill = document.getElementById("job-pill");
+  if (pill) {
+    pill.hidden = !active.length;
+    if (active.length) {
+      const j = active[0];
+      const pct = j.total ? Math.round(100 * j.done / j.total) : 0;
+      pill.innerHTML = `<span class="job-pill-bar"><span style="width:${pct}%;"></span></span>`
+        + `<span>${esc(jobProgressText(j))}${active.length > 1 ? ` \u00b7 +${active.length - 1} queued` : ""}</span>`;
+      pill.title = "Open the Scans page";
+    }
+  }
+  for (const j of jobs) {
+    if (!j.finished || !seen.has(j.id) || told.has(j.id)) continue;
+    told.add(j.id);
+    if (j.state === "done") {
+      toast(`Detection finished: ${j.title || j.id}. `, 12000, { href: `/scans/${encodeURIComponent(j.id)}`, text: "Open" });
+    } else {
+      toast(`Detection failed: ${j.error || j.id}`, 12000);
+    }
+  }
+  _sessionSave(JOBS_SEEN, seen); _sessionSave(JOBS_TOLD, told);
+  // setTimeout, not requestAnimationFrame: it must keep running in a background tab
+  _jobPoll = setTimeout(pollJobs, active.length ? 3000 : 15000);
+}
+
+/* ------------------------------------------------------------- shortcuts
+   One sheet for the whole console, opened with ? on any page. A page adds its
+   own keys by setting window.WF_PAGE_SHORTCUTS to a list of
+   { title, keys: [[key, what], ...] } sections; the page letters come last. */
+function wfShowShortcuts() {
+  if (document.querySelector(".wf-modal-back")) return;
+  const off = window.WF_SUPPRESS_NAV_KEYS ? " (off while reviewing boxes)" : "";
+  const sections = [...(window.WF_PAGE_SHORTCUTS || []), {
+    title: "Anywhere" + off,
+    keys: [["D", "Dashboard"], ["S", "Scans"], ["R", "Review"], ["M", "Map"],
+           ["P", "Reports"], ["E", "Settings"], ["?", "Show this list"]],
+  }];
+  const keyHtml = k => k.split(" / ").map(x => `<span class="kbd">${x}</span>`).join(" / ");
+  const back = document.createElement("div");
+  back.className = "wf-modal-back";
+  back.innerHTML = `<div class="wf-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"
+      style="width:min(520px, 100%); max-height:86vh; overflow-y:auto;">
+      <div style="font-size:15px; font-weight:600;">Keyboard shortcuts</div>
+      ${sections.map(sec => `<div class="shortcut-title">${esc(sec.title)}</div>
+        <div class="shortcut-sheet">${sec.keys.map(([k, what]) =>
+          `<span>${keyHtml(k)}</span><span>${what}</span>`).join("")}</div>`).join("")}
+      <div class="wf-modal-actions"><button type="button" class="btn btn-primary" data-close>Close</button></div>
+    </div>`;
+  const close = () => { back.remove(); document.removeEventListener("keydown", onKey, true); };
+  const onKey = e => { if (e.key === "Escape" || e.key === "?") { e.preventDefault(); e.stopPropagation(); close(); } };
+  back.addEventListener("click", e => { if (e.target === back || e.target.closest("[data-close]")) close(); });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(back);
+  back.querySelector("[data-close]").focus();
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.activeElement?.isContentEditable) return;
+  if (document.querySelector(".wf-modal-back")) return;
+  e.preventDefault();
+  wfShowShortcuts();
+});
 
 /* The chip used to read "Local - Offline" no matter what, which stopped being
    true once cloud sync landed: a run could be uploading and the header still

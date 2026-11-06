@@ -377,6 +377,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def api_models():
         return {"models": data.model_status(app.state.settings)}
 
+    @app.get("/api/jobs")
+    def api_jobs():
+        """Detection jobs for the progress pill every page shows in its header.
+
+        Finished ones are included so a page can announce a job that ended while
+        the operator was elsewhere; the browser decides which it has announced.
+        """
+        jobs = app.state.jobs.all()
+        titles = {}
+        for j in jobs:
+            if j.state == "done":
+                s = data.scan_summary(app.state.settings.output_path / j.id, app.state.settings)
+                titles[j.id] = (s or {}).get("title")
+        return {"jobs": [{**j.to_dict(), "title": titles.get(j.id)} for j in jobs]}
+
     @app.get("/api/jobs/{job_id}")
     def api_job(job_id: str):
         job = app.state.jobs.get(job_id)

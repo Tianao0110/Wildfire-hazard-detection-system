@@ -485,6 +485,10 @@ document.getElementById("cloud-test").addEventListener("click", async () => {
   }
 });
 
+window.WF_PAGE_SHORTCUTS = [
+  { title: "Settings", keys: [["Ctrl+S", "Save changes (Cmd on a Mac)"]] },
+];
+
 load().catch(e => toast("Failed to load settings: " + e.message));
 </script>
 </body>

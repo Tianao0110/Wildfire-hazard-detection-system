@@ -100,8 +100,12 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    Already-analyzed flights collapse into the **✓ ANALYZED** section.
 2. **Detect** — *Detect all* on a flight card, or *Select images* to pick a
    subset in the full-screen chooser. Detection runs in a background
-   low-priority process — keep using the app while it works; progress shows in
-   the Recent Scans table.
+   low-priority process — keep using the app while it works. Progress and the
+   time left show in the header of **every** page (click it for the Scans
+   page), and when the job ends the page says so with a link to the new scan.
+   In the desktop app the progress also shows on the Dock icon (macOS) or in
+   the window title on the taskbar (Windows), and a system notification says
+   the flight is done — so you can walk away from a 20-minute job.
 3. **Review** (the human is the final classifier — detections are proposals):
    open the run → *✎ Review boxes* → wheel-zoom in, delete false boxes, draw
    missed hazards, set labels → *Save review*. Confirmed boxes become the
@@ -117,6 +121,10 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    | Delete | Delete the selected box |
    | Ctrl+Z / Ctrl+Shift+Z | Undo / redo (Cmd on a Mac) |
    | Ctrl+S | Save the review |
+
+   Press **?** on any page (or the **?** button in the header) for the
+   shortcuts of that page plus the page letters — D S R M P E for Dashboard,
+   Scans, Review, Map, Reports, Settings.
 
    **Your review cannot be lost by accident.** Leaving the page with unsaved
    changes asks first, the page-letter shortcuts are switched off while you
@@ -153,6 +161,10 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    On both maps the legend doubles as a filter: click a hazard type to hide or
    show its pins and its site-list rows (one shared choice, remembered on that
    computer).
+
+The desktop window reopens at the size and place you left it. If that place
+is no longer on any screen (a laptop undocked from its monitor), it opens
+centred instead; delete `config/window_state.json` to reset it.
 
 ## 5. Where your data lives
 

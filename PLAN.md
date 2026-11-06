@@ -798,6 +798,34 @@ lab tool rather than something to hand a fire crew.
       runs the current detector over the same source photos as a new scan
 - [x] Suite **219 -> 232**
 
+## Batch 36 - the operator can walk away (2026-11-05)
+
+Tier 3 of the UX review, plus the tier-1 item left over (progress visible only
+on the Scans page, no time estimate, no word when it ended).
+
+- [x] **Progress on every page.** The header carries a pill - "Detecting 2/12 -
+      about 3 min left" - polling `/api/jobs`; the estimate is paced from the
+      first finished image, so the 10-30 s of model loading does not make the
+      early numbers wild. A job that ends while another page is open is
+      announced there, with a link to the new scan
+- [x] **The desktop app tells you.** Dock badge with the percentage (macOS),
+      percentage in the window title (what the Windows taskbar shows), and a
+      system notification naming the flight and what was found, with a Dock
+      bounce / taskbar flash. Job text reaches `osascript` / PowerShell as
+      arguments or environment, never inside the script
+- [x] **The window remembers where it was** (`config/window_state.json`,
+      gitignored), and refuses a saved place whose title bar is not on any
+      attached screen
+- [x] **One `?` sheet for every page**, with the page's own keys first and the
+      page letters last; a `?` button in the header makes it discoverable
+- [x] Checked end to end: re-detect of the 12-image run through the button,
+      the pill and estimate during the job, the toast on the Map page when it
+      ended, identical counts and `detector_generation: 2` on the new run; the
+      window saved and restored through a real pywebview window on macOS, and
+      the Dock badge read back. Not checked: the Windows toast and taskbar
+      flash (no Windows machine here)
+- [x] Suite **232 -> 246**
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

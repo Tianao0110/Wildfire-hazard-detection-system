@@ -751,35 +751,21 @@ function selectNextBox(step) {
    which is switched off while reviewing. */
 const LABEL_KEYS = ["Dead Tree", "Fallen Tree", "Flame", "Smoke"];   // 1-4, the dropdown order
 
-const SHORTCUTS = [
-  ["&larr; &rarr;", "Previous / next image"],
-  ["Enter", "Mark this image reviewed and go to the next"],
-  ["1 2 3 4", "Label: Dead Tree, Fallen Tree, Flame, Smoke (selected box, and new boxes)"],
-  ["Tab / Shift+Tab", "Select the next / previous box and zoom to it"],
-  ["Delete", "Delete the selected box"],
-  ["Ctrl+Z / Ctrl+Shift+Z", "Undo / redo (Cmd on a Mac)"],
-  ["Ctrl+S", "Save the review"],
-  ["Esc", "Deselect, then reset the zoom"],
-  ["?", "Show this list"],
+window.WF_PAGE_SHORTCUTS = [
+  { title: "This scan", keys: [
+    ["&larr; &rarr;", "Previous / next image"],
+    ["Enter", "Mark this image reviewed and go to the next"],
+    ["Esc", "Deselect, then reset the zoom"],
+  ] },
+  { title: "While reviewing boxes", keys: [
+    ["1 2 3 4", "Label: Dead Tree, Fallen Tree, Flame, Smoke (selected box, and new boxes)"],
+    ["Tab / Shift+Tab", "Select the next / previous box and zoom to it"],
+    ["Delete", "Delete the selected box"],
+    ["Ctrl+Z / Ctrl+Shift+Z", "Undo / redo (Cmd on a Mac)"],
+    ["Ctrl+S", "Save the review"],
+  ] },
 ];
-
-function showShortcuts() {
-  const back = document.createElement("div");
-  back.className = "wf-modal-back";
-  back.innerHTML = `<div class="wf-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
-      <div style="font-size:15px; font-weight:600;">Keyboard shortcuts</div>
-      <div class="shortcut-sheet">${SHORTCUTS.map(([k, what]) =>
-        `<span>${k.split(" / ").map(x => `<span class="kbd">${x}</span>`).join(" / ")}</span><span>${what}</span>`).join("")}</div>
-      <div class="wf-modal-actions"><button type="button" class="btn btn-primary" data-close>Close</button></div>
-    </div>`;
-  const close = () => { back.remove(); document.removeEventListener("keydown", onKey, true); };
-  const onKey = e => { if (e.key === "Escape" || e.key === "?") { e.preventDefault(); e.stopPropagation(); close(); } };
-  back.addEventListener("click", e => { if (e.target === back || e.target.closest("[data-close]")) close(); });
-  document.addEventListener("keydown", onKey, true);
-  document.body.appendChild(back);
-  back.querySelector("[data-close]").focus();
-}
-document.getElementById("show-keys").addEventListener("click", showShortcuts);
+document.getElementById("show-keys").addEventListener("click", wfShowShortcuts);
 
 document.addEventListener("keydown", ev => {
   if (!DETAIL || document.querySelector(".wf-modal-back")) return;
@@ -794,7 +780,6 @@ document.addEventListener("keydown", ev => {
   if (mod && key.toLowerCase() === "s" && EDIT) { handled(); document.getElementById("save-review").click(); return; }
   if (mod || ev.altKey) return;
 
-  if (key === "?") { handled(); showShortcuts(); return; }
   if (key === "ArrowLeft") { handled(); goToImage(curImage - 1); return; }
   if (key === "ArrowRight") { handled(); goToImage(curImage + 1); return; }
   if (key === "Enter") {
