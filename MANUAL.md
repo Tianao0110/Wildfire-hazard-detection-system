@@ -138,6 +138,8 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    ground**, in metres, from the photo's altitude and camera, and a
    confidence band — *high* (85%+), *medium* (60%+) or *low* — instead of a
    percentage that read "100%" on half the boxes.
+   Zoomed in, a **minimap** in the corner shows the whole photo, its boxes,
+   and a frame around the part on screen; click or drag in it to move there.
 
    **"Older detector".** Detection improved on 2026-11-05 (dead trees at the
    scale the model was trained on, fallen trees, stricter flame/smoke). Scans
