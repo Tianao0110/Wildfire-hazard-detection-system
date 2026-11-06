@@ -23,7 +23,7 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-from src.wildfire.config import load_settings  # noqa: E402
+from src.wildfire.config import PROJECT_ROOT, load_settings  # noqa: E402
 from src.wildfire.llm import generate_analysis, resolve_model_id  # noqa: E402
 from src.wildfire.report import build_report, build_summary_text  # noqa: E402
 from src.wildfire.types import BatchResult  # noqa: E402
@@ -67,7 +67,14 @@ def main() -> int:
         ai_text = get_ai_text(settings, build_summary_text(batch))
 
     print("Building PDF...")
-    path = build_report(batch, out_pdf, ai_text=ai_text)
+    # Same arguments the console passes, so a report built here looks like one
+    # built from the Reports page - it used to come out with no logo, no
+    # satellite backdrop and the default page caps instead of the configured ones.
+    path = build_report(batch, out_pdf, ai_text=ai_text,
+                        max_image_pages=settings.report_max_image_pages,
+                        detail_pages=settings.report_detail_pages,
+                        map_dir=settings._resolve(settings.map_tiles_dir),
+                        branding_dir=PROJECT_ROOT / "branding")
     print(f"Wrote {path}  ({path.stat().st_size // 1024} KB)")
     return 0
 

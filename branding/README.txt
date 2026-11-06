@@ -20,6 +20,11 @@ Put your brand assets in this folder and restart the app — no code changes.
    Restart the desktop app (close the window and reopen). The UI reads the
    latest content of this folder at startup.
 
-NOTE: This folder is local brand config and is NOT committed to Git
-(gitignored), so each machine can keep its own branding and code updates
-never overwrite your logo.
+NOTE: logo.png and brand.json ARE tracked in Git - they are the project's
+own neutral mark (two conifers on a pine-green tile) and its colours. To brand
+a deployment for a client, replace them locally, then rebuild the desktop icon
+with `python -m scripts.install_desktop_app`; the icon is cut from logo.png.
+
+Do not put an institution's or client's logo here without written permission.
+A logo is a trademark: using one as a product's identity says that
+organisation made or endorses the product.

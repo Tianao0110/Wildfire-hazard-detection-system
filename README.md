@@ -14,6 +14,12 @@ satellite hazard map.
 > the standard field workflow, troubleshooting and known limits.
 > Packaging/distribution: **[INSTALL.md](INSTALL.md)**. Delivery progress: **[PLAN.md](PLAN.md)**.
 
+Built as a capstone project at SAIT (2026). It is an independent student project,
+not a SAIT product, and does not carry the institution's branding. **No drone
+imagery is included in this repository:** the flight photos used during development
+were provided under the capstone agreement and are not redistributable. Point the
+console at your own mission folder to try it.
+
 ## How it works
 
 - **Layer 1 — Detection**: drone images → optional pre-compression

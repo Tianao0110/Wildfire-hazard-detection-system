@@ -2,7 +2,7 @@
   "app_name": "Wildfire Hazard Detection System",
   "subtitle": "Operations Console · Offline",
   "colors": {
-    "primary": "#0072BC",
-    "primary_light": "#007ACC"
+    "primary": "#2D5A3D",
+    "primary_light": "#308030"
   }
 }

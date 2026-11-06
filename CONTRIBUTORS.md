@@ -54,6 +54,12 @@ drawn from.
 > `git checkout <branch> -- branding/logo.png` rather than a merge, so `git log`
 > credits the commit author instead of Luna. The logo and the brand colour are
 > hers.
+>
+> **Update, 2026-11-05.** After graduation the repository became a public
+> portfolio project, and the SAIT logo is SAIT's registered trademark, so it was
+> replaced by a neutral project mark (two conifers on a pine-green tile) and the
+> brand blue by the console's own pine green. Luna's original brand work is in
+> the history at `b2be7fe`.
 
 ---
 
