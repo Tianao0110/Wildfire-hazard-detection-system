@@ -72,8 +72,12 @@ list of flights you can detect one at a time or in a chosen subset.
 
 ### Scan detail - inspect the evidence
 A zoomable viewer (it re-renders from the full-resolution frame, so zooming shows real
-detail), the detections in the current frame with click-to-locate, GPS and camera
-metadata, and per-frame severity.
+detail) with the boxes drawn live over the photo rather than burned into it - hide a
+hazard type, or turn the labels on, and the frame underneath stays visible. Beside it,
+the detections in the current frame with click-to-locate, each sized in metres on the
+ground and given a confidence band, plus GPS and camera metadata and per-frame severity.
+A scan made by an older version of the detector says so ("Older detector") and offers
+*Re-detect*, which runs the current one over the same photos as a new scan.
 
 ![Scan detail: annotated frame, detections list and frame metadata](docs/screenshots/scan-detail.jpg)
 
@@ -286,8 +290,9 @@ so the installer only needs Python (the reasoning is in [AGENTS.md](AGENTS.md)).
 
 ## Configuration
 
-Most settings are on the **Settings** page; all of them live in `config/settings.json`
-(copied from `config/settings.example.json` on first run). The ones that shape results:
+Most settings are on the **Settings** page - everyday ones up front, engineering ones
+(detection thresholds, ONNX model, paths) folded under *Advanced*; all of them live in
+`config/settings.json` (copied from `config/settings.example.json` on first run). The ones that shape results:
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -338,7 +343,7 @@ If the exported model returns empty or garbled boxes, flip `onnx_normalize` or
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # 219 tests; heavy model tests skip themselves when weights are absent
+pytest -q          # 232 tests; heavy model tests skip themselves when weights are absent
 ```
 
 The suite runs on Windows and macOS. Tests that protect a fix were checked against a

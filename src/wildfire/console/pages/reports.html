@@ -46,16 +46,16 @@ function draw() {
     <div style="display:grid; grid-template-columns:210px 1fr 90px 110px 100px 130px; gap:12px; align-items:center; padding:13px 20px; border-bottom:1px solid var(--line-soft);"
          onmouseover="this.style.background='#faf9f4'" onmouseout="this.style.background=''">
       <div style="line-height:1.3;">
-        <div class="mono" style="font-size:12px; font-weight:600;">${esc(r.created.replace("T", " · "))}</div>
+        <div class="mono" style="font-size:12px; font-weight:600;">${esc(fmtWhen(r.created))}</div>
         <div class="mono" style="font-size:10px; color:var(--muted-3);">${esc(r.file)}</div>
       </div>
       <div style="line-height:1.3; min-width:0;">
         ${runLabel(r, { size: 13, link: true })}
-        <div style="font-size:11px; color:var(--muted-2);">${plural(r.images, "photo")} · ${esc(countsLine(r.detections_by_type))}</div>
+        <div style="font-size:11px; color:var(--muted-2);">${plural(r.images, "image")} · ${esc(countsLine(r.detections_by_type))}</div>
       </div>
       <span class="mono" style="font-size:12px; text-align:right; color:var(--text-2);">${r.size_kb} KB</span>
       <div>${sevBadge(r.severity)}</div>
-      <span style="font-size:12px; color:${r.reviewed ? "var(--green-2)" : "var(--muted-3)"};">${r.reviewed ? "✓ reviewed" : "proposals"}</span>
+      <span>${r.reviewed ? '<span class="badge low">REVIEWED</span>' : '<span class="badge none" title="built from the model\'s proposals, before review">UNREVIEWED</span>'}</span>
       <div style="text-align:right;">
         <a class="link-green" style="font-size:12px;" href="${esc(r.url)}" target="_blank" rel="noopener">Open PDF</a>
       </div>

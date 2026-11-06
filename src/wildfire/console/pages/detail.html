@@ -19,9 +19,22 @@
   #det-table [data-di] { cursor: pointer; }
   #det-table [data-di]:hover { background: #faf9f4; }
   #overlay { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  #overlay rect.box { fill:transparent; stroke-width:2.5; cursor:pointer; }
-  #overlay rect.box.sel { stroke-dasharray:6 4; stroke-width:3.5; }
-  #overlay text { font:600 15px 'IBM Plex Mono',monospace; paint-order:stroke; stroke:#000a; stroke-width:3; fill:#fff; pointer-events:none; }
+  /* Boxes are drawn live over the original photo in both view and review mode.
+     non-scaling-stroke keeps a line 2 px on screen at any zoom, and --fs (set
+     from the zoom in applyZoom) keeps labels ~12 px on screen - they used to be
+     burned into the JPEG in image pixels, unreadable at fit and huge zoomed in. */
+  #overlay rect.box { fill:transparent; stroke-width:2px; vector-effect:non-scaling-stroke; cursor:pointer; }
+  #overlay rect.box.sel { stroke-dasharray:6 4; stroke-width:3px; }
+  #overlay.view { pointer-events:none; }
+  #overlay text { font:600 var(--fs, 15px) 'IBM Plex Mono',monospace; paint-order:stroke; stroke:#000c;
+                  stroke-width:.24em; fill:#fff; pointer-events:none; }
+  .layer-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:7px 16px;
+               border-bottom:1px solid var(--line-soft); font-size:11px; color:var(--muted-2); }
+  .layer-bar .kind-toggle { padding:3px 9px; font-size:11px; }
+  .conf { font:600 10.5px var(--mono); padding:1px 7px; border-radius:10px; border:1px solid var(--border-2); }
+  .conf.high { color:var(--green); border-color:var(--green-line); background:var(--green-bg); }
+  .conf.medium { color:var(--amber-text); }
+  .conf.low { color:var(--muted-3); }
   .edit-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; background:#f2f8f2; border-bottom:1px solid var(--green-line); }
 </style>
 </head>
@@ -39,7 +52,7 @@
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <h1 class="h1" id="d-title">Scan Detail</h1>
         <button type="button" id="d-rename" class="btn-quiet" style="padding:4px 10px; font-size:12px;"
-                title="Give this run a name of your own">&#9998; Rename</button>
+                title="Give this scan a name of your own">&#9998; Rename</button>
       </div>
       <form id="d-rename-form" style="display:none; align-items:center; gap:8px; margin:6px 0 4px;">
         <input class="input" id="d-rename-input" maxlength="80" style="width:min(420px, 60vw);"
@@ -54,6 +67,8 @@
     </div>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
       <div style="display:flex; gap:10px;">
+        <button id="d-redetect" class="btn btn-outline" style="display:none;"
+                title="Run the current detector over this scan's original photos, as a new scan">&#8635; Re-detect</button>
         <button id="d-edit" class="btn btn-outline">✎ Review boxes</button>
         <button id="d-upload" class="btn btn-outline" style="display:none;">☁ Sync to cloud</button>
         <button id="d-report" class="btn btn-primary">
@@ -93,11 +108,18 @@
           <div style="display:flex; align-items:center; gap:10px;">
             <button id="mark-reviewed" class="btn-quiet" style="padding:5px 11px; font-size:12px;">&#10003; Mark reviewed</button>
             <div class="view-toggle" id="view-toggle">
-              <button data-v="annotated" class="on">Annotated</button>
+              <button data-v="annotated" class="on" title="The original photo with the boxes drawn over it">Boxes</button>
               <button data-v="original">Original</button>
               <button data-v="gridmap">Grid</button>
             </div>
           </div>
+        </div>
+
+        <div class="layer-bar" id="layer-bar">
+          <span style="font-weight:600;">Show</span>
+          <span id="layer-kinds" style="display:inline-flex; gap:6px; flex-wrap:wrap;"></span>
+          <label style="display:inline-flex; align-items:center; gap:5px; margin-left:4px;">
+            <input type="checkbox" id="layer-labels"> labels</label>
         </div>
 
         <div class="edit-bar" id="edit-bar" style="display:none;">
@@ -155,7 +177,7 @@
       <details class="card" id="run-details" style="padding:0;">
         <summary style="cursor:pointer; padding:13px 17px; font-size:13px; font-weight:600;
                         display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <span>Whole run</span>
+          <span>Whole scan</span>
           <span id="run-summary-chip" style="font-weight:400;"></span>
         </summary>
         <div style="padding:0 17px 15px;">
@@ -340,6 +362,7 @@ function applyZoom() {
     st.style.width = scaled ? (fitW * zoom) + "px" : "";
     st.style.transform = `translate(${panX}px, ${panY}px)`;
   }
+  updateOverlayScale();
   // Only shown when there is somewhere to go; at 1x on a fitted image it was
   // permanent instructions taking space from the header.
   const hint = document.getElementById("zoom-hint");
@@ -395,19 +418,96 @@ function imgKind(im) {
 }
 
 /* ------------------------------------------------------------- edit state */
+/* What an image shows: the reviewer's verdict when there is one, the model's
+   proposals otherwise. The view-mode list used to read raw proposals even on a
+   reviewed run, so boxes deleted in review were still listed. */
+function sourceBoxes(im) {
+  return im.confirmed != null
+    ? im.confirmed.map(c => ({ x1: c.xyxy[0], y1: c.xyxy[1], x2: c.xyxy[2], y2: c.xyxy[3], label: c["class"], score: null }))
+    : (im.detections || []).map(d => ({ x1: d.xyxy[0], y1: d.xyxy[1], x2: d.xyxy[2], y2: d.xyxy[3], label: d.display, score: d.score }));
+}
+
 function initBoxes(i) {
-  if (boxesByImage[i]) return boxesByImage[i];
-  const im = DETAIL.images_detail[i];
-  const src = im.confirmed != null
-    ? im.confirmed.map(c => ({ x1: c.xyxy[0], y1: c.xyxy[1], x2: c.xyxy[2], y2: c.xyxy[3], label: c["class"] }))
-    : (im.detections || []).map(d => ({ x1: d.xyxy[0], y1: d.xyxy[1], x2: d.xyxy[2], y2: d.xyxy[3], label: d.display }));
-  boxesByImage[i] = src;
-  return src;
+  if (!boxesByImage[i]) boxesByImage[i] = sourceBoxes(DETAIL.images_detail[i]);
+  return boxesByImage[i];
+}
+
+/* The boxes on screen right now: the working copy while reviewing, the saved
+   state otherwise. */
+function shownBoxes(i) {
+  return EDIT ? initBoxes(i) : sourceBoxes(DETAIL.images_detail[i]);
+}
+
+/* Which types and whether labels are drawn - a per-viewer preference. */
+const LAYER_KEY = "wf.viewLayers";
+const LAYERS = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAYER_KEY));
+    if (saved) return { hidden: new Set(saved.hidden || []), labels: !!saved.labels };
+  } catch (e) { /* first visit */ }
+  // labels off by default: on a 30-box frame they cover the photo, and the
+  // colours plus the legend above already say the type
+  return { hidden: new Set(), labels: false };
+})();
+function saveLayers() {
+  try { localStorage.setItem(LAYER_KEY, JSON.stringify({ hidden: [...LAYERS.hidden], labels: LAYERS.labels })); }
+  catch (e) { /* storage blocked: the choice just is not remembered */ }
+}
+
+function drawLayerBar() {
+  const bar = document.getElementById("layer-bar");
+  const showBoxes = EDIT || curView === "annotated";
+  bar.style.display = showBoxes ? "" : "none";
+  if (!showBoxes) return;
+  const present = new Set(ALL_IMAGES.flatMap(im => sourceBoxes(im).map(b => b.label)));
+  const labels = Object.keys(LABEL_COLORS).filter(l => present.has(l));
+  // Hiding a type while reviewing would hide boxes that still get saved, so the
+  // type toggles are a viewing aid only.
+  document.getElementById("layer-kinds").innerHTML = EDIT ? "" : labels.map(l => {
+    const on = !LAYERS.hidden.has(l);
+    return `<button type="button" class="kind-toggle${on ? "" : " off"}" data-layer="${esc(l)}" aria-pressed="${on}">
+      ${kindIcon(kindForLabel(l), 11)} ${esc(l)}</button>`;
+  }).join("");
+  document.getElementById("layer-labels").checked = LAYERS.labels;
+}
+document.getElementById("layer-kinds").addEventListener("click", e => {
+  const b = e.target.closest("[data-layer]");
+  if (!b) return;
+  const l = b.dataset.layer;
+  LAYERS.hidden.has(l) ? LAYERS.hidden.delete(l) : LAYERS.hidden.add(l);
+  saveLayers(); drawLayerBar(); drawPreview();
+});
+document.getElementById("layer-labels").addEventListener("change", e => {
+  LAYERS.labels = e.target.checked; saveLayers(); drawPreview();
+  e.target.blur();
+});
+
+/* Box size in metres when the ground resolution is known, pixels otherwise -
+   "[3914, 1316, 4080, 1409]" meant nothing to a forester. */
+function boxSize(b, im) {
+  const w = b.x2 - b.x1, h = b.y2 - b.y1;
+  if (im.gsd_cm) {
+    const m = v => (v * im.gsd_cm / 100).toFixed(v * im.gsd_cm / 100 < 10 ? 1 : 0);
+    return `${m(w)} \u00d7 ${m(h)} m`;
+  }
+  return `${Math.round(w)} \u00d7 ${Math.round(h)} px`;
+}
+
+/* Confidence as a band, the exact figure on hover. The alive/dead classifier
+   reports 1.00 for most of what it keeps, and a column of "100%" claimed a
+   certainty nothing in this pipeline has. */
+function confBand(score) {
+  if (score == null) return '<span class="conf" title="drawn or confirmed by a reviewer">manual</span>';
+  const band = score >= 0.85 ? "high" : score >= 0.6 ? "medium" : "low";
+  return `<span class="conf ${band}" title="model confidence ${(score * 100).toFixed(0)}%">${band}</span>`;
 }
 
 /* ------------------------------------------------------------- preview */
 function imageSrc(im) {
   if (EDIT) return im.original_url;
+  // Boxes view: the clean original with boxes drawn live (see overlaySvg); the
+  // burned-in annotated JPEG is only the fallback for a run without originals.
+  if (curView === "annotated") return im.original_url || im.annotated_url;
   if (curView === "annotated" && DETAIL.reviewed && im.confirmed_annotated_url) return im.confirmed_annotated_url;
   if (curView === "gridmap" && DETAIL.reviewed && im.confirmed_gridmap_url) return im.confirmed_gridmap_url;
   return im[curView + "_url"] || im.annotated_url || im.original_url;
@@ -415,22 +515,34 @@ function imageSrc(im) {
 
 function overlaySvg(im) {
   const W = im.width || 1, H = im.height || 1;
-  const boxes = initBoxes(curImage);
-  const strokePx = Math.max(2.5, W / 400);
-  const fontPx = Math.max(15, W / 70);
+  const boxes = shownBoxes(curImage);
   let inner = "";
   boxes.forEach((b, i) => {
+    if (!EDIT && LAYERS.hidden.has(b.label)) return;
     const c = LABEL_COLORS[b.label] || KIND.deadtree.color;
-    inner += `<rect class="box ${i === selBox ? "sel" : ""}" data-bi="${i}" x="${b.x1}" y="${b.y1}"
-      width="${b.x2 - b.x1}" height="${b.y2 - b.y1}" stroke="${c}" style="stroke-width:${i === selBox ? strokePx * 1.5 : strokePx}"></rect>
-      <text x="${b.x1 + 4}" y="${Math.max(b.y1 - 8, fontPx)}" style="font-size:${fontPx}px">${esc(b.label)}</text>`;
+    inner += `<rect class="box ${EDIT && i === selBox ? "sel" : ""}" data-bi="${i}" x="${b.x1}" y="${b.y1}"
+      width="${b.x2 - b.x1}" height="${b.y2 - b.y1}" stroke="${c}"></rect>`;
+    if (LAYERS.labels || (EDIT && i === selBox)) {
+      // above the box, or inside it when the box touches the top edge
+      inner += `<text x="${b.x1}" y="${b.y1}" dx="0.15em" dy="${b.y1 < H * 0.03 ? "1.1em" : "-0.35em"}">${esc(b.label)}</text>`;
+    }
   });
-  if (drawing && drawing.x2 !== undefined) {
-    inner += `<rect x="${Math.min(drawing.x1, drawing.x2)}" y="${Math.min(drawing.y1, drawing.y2)}"
+  if (EDIT && drawing && drawing.x2 !== undefined) {
+    inner += `<rect class="box" x="${Math.min(drawing.x1, drawing.x2)}" y="${Math.min(drawing.y1, drawing.y2)}"
       width="${Math.abs(drawing.x2 - drawing.x1)}" height="${Math.abs(drawing.y2 - drawing.y1)}"
-      fill="none" stroke="#fff" stroke-dasharray="8 5" style="stroke-width:${strokePx}"></rect>`;
+      stroke="#fff" stroke-dasharray="8 5"></rect>`;
   }
-  return `<svg id="overlay" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${inner}</svg>`;
+  return `<svg id="overlay" class="${EDIT ? "" : "view"}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${inner}</svg>`;
+}
+
+/* Labels stay ~12 px on screen whatever the zoom: their size is set in image
+   units from how wide the frame is drawn right now. */
+function updateOverlayScale() {
+  const ov = document.getElementById("overlay"), img = document.getElementById("stage-img");
+  const im = DETAIL && DETAIL.images_detail[curImage];
+  if (!ov || !img || !im) return;
+  const drawn = img.getBoundingClientRect().width || 1;
+  ov.style.setProperty("--fs", `${(12 * (im.width || 1)) / drawn}px`);
 }
 
 function drawPreview() {
@@ -453,7 +565,7 @@ function drawPreview() {
     ? `<div id="stage" style="position:relative; line-height:0;"
             title="wheel: zoom · drag: pan · double-click: reset">
          <img id="stage-img" src="${esc(url)}" alt="${esc(im.name)}" draggable="false">
-         ${EDIT ? overlaySvg(im) : ""}
+         ${EDIT || (curView === "annotated" && im.original_url) ? overlaySvg(im) : ""}
        </div>`
     : `<span class="mono" style="color:#cdd6c0; opacity:.5; font-size:12px; text-align:center; line-height:1.7;">${empty}</span>`;
   // #stage is rebuilt above, so fitW belongs to an element that no longer
@@ -496,6 +608,7 @@ function drawPreview() {
   const sel = document.querySelector("#thumbs .thumb-wrap.sel");
   if (sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
   applyZoom();  // innerHTML replaced the stage — restore the current transform
+  drawLayerBar();
   if (EDIT) wireOverlay();
   drawReviewControls();
   // Hooked here rather than at every call site: this already runs on every
@@ -720,6 +833,26 @@ function setEdit(on) {
 }
 
 document.getElementById("d-edit").addEventListener("click", () => setEdit(!EDIT));
+
+document.getElementById("d-redetect").addEventListener("click", async e => {
+  const btn = e.currentTarget;
+  const go = await wfConfirm(
+    `Run the current detector over the ${plural(DETAIL.images, "original photo")} again? `
+    + "The result is a NEW scan; this one and its review are kept as they are.",
+    { ok: "Re-detect" });
+  if (!go) return;
+  btn.disabled = true;
+  try {
+    const res = await api(`/api/scans/${encodeURIComponent(DETAIL.id)}/redetect`, { method: "POST" });
+    toast(`Re-detecting ${plural(res.images, "image")}`
+      + (res.missing ? ` (${res.missing} no longer on disk)` : "") + " \u2014 progress is on the Scans page");
+    wfNavigate("/scans");
+  } catch (err) {
+    toast("Could not re-detect: " + err.message, 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 document.getElementById("cancel-edit").addEventListener("click", async () => {
   if (DIRTY) {
     const n = TOUCHED.size;
@@ -805,7 +938,7 @@ function drawImagePanel() {
     + kv("Detections", total)
     + kv("GPS", im.gps ? fmtCoord(im.gps[0], im.gps[1]) : "not embedded")
     + (im.altitude != null ? kv("Altitude", `${Number(im.altitude).toFixed(1)} m`) : "")
-    + (im.timestamp ? kv("Captured", im.timestamp) : "")
+    + (im.timestamp ? kv("Captured", fmtExif(im.timestamp)) : "")
     + (im.confirmed ? kv("Confirmed boxes", im.confirmed.length) : "");
 }
 
@@ -827,15 +960,10 @@ function drawDetTable() {
   const ims = DETAIL.images_detail;
   const color = l => LABEL_COLORS[l] || "#d4af37";
   let rows, title;
-  if (EDIT) {
-    title = "Boxes in this image (unsaved)";
-    rows = (ims.length ? initBoxes(curImage) : []).map(b =>
-      ({ label: b.label, xyxy: [b.x1, b.y1, b.x2, b.y2], score: null }));
-  } else {
-    title = "Detections in this image";
-    rows = (ims.length ? (ims[curImage].detections || []) : []).map(d =>
-      ({ label: d.display, xyxy: d.xyxy || [], score: d.score }));
-  }
+  const im = ims[curImage];
+  title = EDIT ? "Boxes in this image (unsaved)"
+        : im && im.confirmed != null ? "Confirmed in this image" : "Detections in this image";
+  rows = ims.length ? shownBoxes(curImage) : [];
   document.getElementById("det-table-title").textContent = title;
   document.getElementById("det-count").textContent =
     `${rows.length} box${rows.length === 1 ? "" : "es"} · click a row to locate it`;
@@ -846,8 +974,8 @@ function drawDetTable() {
         <span style="display:inline-flex; align-items:center; gap:8px;">
           <span style="width:9px; height:9px; border-radius:2px; background:${color(r.label)};"></span>${esc(r.label)}
         </span>
-        <span class="mono" style="color:var(--muted-2);">[${r.xyxy.map(v => Math.round(v)).join(", ")}]</span>
-        <span class="mono" style="font-weight:600;">${r.score != null ? (r.score * 100).toFixed(0) + "%" : "manual"}</span>
+        <span class="mono" style="color:var(--muted-2);">${boxSize(r, im)}</span>
+        ${confBand(r.score)}
       </div>`).join("")}</div>`
     : '<div class="empty" style="padding:20px;">No boxes in this image.</div>';
   document.querySelectorAll("#det-table [data-di]").forEach(el =>
@@ -860,12 +988,10 @@ function focusDetection(di) {
   const ims = DETAIL.images_detail;
   if (!ims.length) return;
   const im = ims[curImage];
-  const rows = EDIT
-    ? initBoxes(curImage)
-    : (im.detections || []).map(d => ({ x1: d.xyxy[0], y1: d.xyxy[1], x2: d.xyxy[2], y2: d.xyxy[3] }));
-  const b = rows[di];
+  const b = shownBoxes(curImage)[di];
   if (!b) return;
   if (EDIT) { selBox = di; updateEditControls(); }
+  else if (curView !== "annotated") { curView = "annotated"; syncViewToggle(); }   // the box must be visible
   resetZoom();
   drawPreview();
   setTimeout(() => {  // not rAF: fires even when the tab is backgrounded
@@ -904,7 +1030,7 @@ function drawSummary() {
         <span style="width:9px; height:9px; border-radius:2px; background:${color(k)};"></span>${esc(k)} detections</span>
       <span class="mono" style="font-size:15px; font-weight:600;">${v}</span>
     </div>`).join("");
-  if (!rows) rows = '<div style="font-size:12px; color:var(--muted-3);">No detections in this run.</div>';
+  if (!rows) rows = '<div style="font-size:12px; color:var(--muted-3);">No detections in this scan.</div>';
   if (DETAIL.avg_confidence != null && !DETAIL.reviewed) {
     rows += `
       <div style="height:1px; background:var(--line);"></div>
@@ -954,7 +1080,7 @@ function draw() {
   document.getElementById("d-title").textContent = DETAIL.title || DETAIL.id;
   document.title = `${DETAIL.title || DETAIL.id} \u2014 Wildfire Console`;
   document.getElementById("d-sub").textContent =
-    `${plural(DETAIL.images, "photo")} · ${countsLine(DETAIL.detections_by_type)}`;
+    `${plural(DETAIL.images, "image")} · ${countsLine(DETAIL.detections_by_type)}`;
   const flown = DETAIL.flown_date
     ? `Flown ${DETAIL.flown_date}${DETAIL.flown_time ? " · " + DETAIL.flown_time : ""}`
     : "Capture time not in the photos' EXIF";
@@ -964,6 +1090,14 @@ function draw() {
   if (DETAIL.reviewed) chips.push('<span class="chip" style="color:var(--green); border-color:var(--green-line);">Reviewed</span>');
   const sev = DETAIL.severity || "none";
   chips.push(`<span class="badge ${sev}" style="font-size:11px; padding:3px 9px;">${sev === "none" ? "NO DETECTIONS" : SEV[sev].label.toUpperCase() + " SEVERITY"}</span>`);
+  if (DETAIL.detector_stale) chips.push(staleChip(DETAIL).replace('class="badge stale"',
+    'class="badge stale" style="font-size:11px; padding:3px 9px;"'));
+  // Offered on any scan whose photos are still where they were, but only
+  // pressed on the operator's eye for stale ones - a fresh run re-detected
+  // gives the same answer.
+  const redetect = document.getElementById("d-redetect");
+  redetect.style.display = DETAIL.can_redetect && !DETAIL.results_only ? "" : "none";
+  redetect.className = DETAIL.detector_stale ? "btn btn-primary" : "btn btn-outline";
   if (DETAIL.results_only) {
     const from = (DETAIL.synced_from || {}).machine || "another machine";
     chips.push(`<span class="chip" title="Only the findings were synced — the photos stay on the machine that flew the mission.">☁ Results only · from ${esc(from)}</span>`);
@@ -1030,10 +1164,13 @@ renameForm.addEventListener("submit", async e => {
   }
 });
 
+function syncViewToggle() {
+  document.querySelectorAll("#view-toggle button").forEach(x => x.classList.toggle("on", x.dataset.v === curView));
+}
 document.getElementById("view-toggle").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   curView = b.dataset.v;
-  document.querySelectorAll("#view-toggle button").forEach(x => x.classList.toggle("on", x === b));
+  syncViewToggle();
   drawPreview();
 });
 
@@ -1133,8 +1270,8 @@ function applyImageFilter() {
   banner.style.display = "flex";
   document.getElementById("filter-text").innerHTML = hit.length
     ? `Showing <b>${hit.length}</b> image${hit.length === 1 ? "" : "s"} from `
-      + `<b>${esc(FILTER_LABEL)}</b> &mdash; ${ALL_IMAGES.length} in the full run.`
-    : `None of ${esc(FILTER_LABEL)}'s images are in this run; showing all ${ALL_IMAGES.length}.`;
+      + `<b>${esc(FILTER_LABEL)}</b> &mdash; ${ALL_IMAGES.length} in the full scan.`
+    : `None of ${esc(FILTER_LABEL)}'s images are in this scan; showing all ${ALL_IMAGES.length}.`;
   // Review edits the whole run's labels, so it cannot run on a subset.
   document.getElementById("d-edit").disabled = hit.length > 0;
 }

@@ -713,6 +713,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         detail = data.scan_detail(Path(run_id).name, settings)
         return {"saved": len(records), "detail": detail}
 
+    @app.post("/api/scans/{run_id}/redetect")
+    def api_redetect(run_id: str):
+        """Run the current detector over a scan's original photos, as a NEW scan.
+
+        The old one is kept untouched - it may hold a review - and the new one is
+        comparable with everything else made by this version.
+        """
+        run_dir = app.state.settings.output_path / Path(run_id).name
+        batch_file = run_dir / "batch.json"
+        if not batch_file.exists():
+            raise HTTPException(404, f"run '{run_id}' not found")
+        images = json.loads(batch_file.read_text(encoding="utf-8")).get("images", [])
+        paths = [Path(im["path"]) for im in images if im.get("path") and Path(im["path"]).is_file()]
+        if not paths:
+            raise HTTPException(400, "the original photos are no longer where they were "
+                                     "when this scan was made, so it cannot be re-detected")
+        job = app.state.jobs.start_detection(paths, app.state.settings)
+        return JSONResponse({"job": job.to_dict(), "images": len(paths),
+                             "missing": len(images) - len(paths)}, status_code=202)
+
     @app.post("/api/scans/{run_id}/title")
     def api_set_title(run_id: str, body: TitleBody):
         """Name a run. An empty title goes back to the one built from capture time."""

@@ -149,6 +149,17 @@ function sevBadge(sev) {
   return `<span class="badge ${sev}">${SEV[sev].label}</span>`;
 }
 
+/* A run made by an older detector than this one. Its counts were taken under
+   different rules (gen 1 called ~70 "dead trees" per frame where gen 2 finds
+   ~20), so its severity is graded on thresholds that no longer fit it. Shown
+   beside the badge rather than replacing it: the run is still the record of
+   what was seen on that flight. */
+function staleChip(s) {
+  if (!s || !s.detector_stale) return "";
+  return '<span class="badge stale" title="Made by an older detector: its counts are not comparable '
+    + 'with newer scans and its severity may be overstated. Re-detect from the scan page.">OLDER DETECTOR</span>';
+}
+
 /* A run's badge is its WORST frame. On its own that reads as a verdict on the
    whole flight: a 58-image run with flame in 6 frames showed "HIGH" while 44 of
    its frames were medium or low. These two render the rest of the picture. */
@@ -452,6 +463,18 @@ function fmtCoord(lat, lon) {
    physical location; opening it should show the frames taken there, not all 58
    images of the flight that happened to include it. Sites can span runs, so
    members are grouped by run and each run gets its own link. */
+/* One date format across the console: "Nov 5, 2026 · 21:58". The pages used
+   three - "2026-11-05 · 21:58:18", "Nov 05, 2026" and raw EXIF
+   "2025:05:02 14:52:30" - sometimes two on one screen. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtWhen(iso, { seconds = false } = {}) {
+  const m = /^(\d{4})[-:](\d{2})[-:](\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(iso || ""));
+  if (!m) return String(iso || "");
+  const [, y, mo, d, hh, mm, ss] = m;
+  return `${MONTHS[+mo - 1]} ${+d}, ${y} \u00b7 ${hh}:${mm}${seconds && ss ? ":" + ss : ""}`;
+}
+const fmtExif = ts => fmtWhen(ts, { seconds: true });   // EXIF "YYYY:MM:DD HH:MM:SS"
+
 /* "1 photo" / "12 photos". Copy like "1 images" is the kind of thing that makes
    a tool read as unfinished, and it was in four places. */
 const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
@@ -495,7 +518,7 @@ function sitePopupHtml(s, i) {
       <span class="mono" style="font-size:10px; color:#6b6b63; overflow:hidden;
             text-overflow:ellipsis; white-space:nowrap;" title="${esc(l.runId)}">${esc(window.WF_RUN_TITLES[l.runId] || l.runId)}</span>
       <a href="${l.url}" style="color:#2D5A2D; font-weight:600; font-size:10px; white-space:nowrap;"
-         >${plural(l.names.length, "photo")} &rarr;</a>
+         >${plural(l.names.length, "image")} &rarr;</a>
     </div>`).join("");
   const thumb = ((s.members || []).find(m => m.thumb) || {}).thumb;
   return `

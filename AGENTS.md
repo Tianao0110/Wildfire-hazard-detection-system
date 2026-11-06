@@ -399,6 +399,16 @@ outputs/<run>_<timestamp>/
     capture time by `gps.capture_window` / `flown_labels`) and the flight's
     date, with the folder id kept small for whoever needs it. Show a run
     through `runLabel()` in console.js so every page names it the same way.
+21. **A count is only comparable with counts from the same detector.** The
+    scale fix took the crown model from ~70 "dead trees" per frame to ~20, and
+    the severity thresholds were recalibrated for the new numbers - which left
+    every older run graded High on rules made for a different detector, with
+    nothing on screen to say so. `config.DETECTOR_GENERATION` is recorded in
+    `batch_info`; **bump it whenever a detection change makes old counts
+    incomparable**, and note what changed beside the constant. Runs predating
+    the field are dated by `data.detector_generation()`. Stale runs are tagged,
+    never silently re-graded, and *Re-detect* makes a NEW run from the source
+    photos - the old one may hold a review.
 
 ---
 
@@ -418,7 +428,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 219 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 232 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the

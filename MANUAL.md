@@ -123,6 +123,22 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    review, and every change is also kept in a draft on this computer — if the
    window closes or the computer restarts, opening the run again offers
    *Restore and continue*.
+   **Reading a scan.** Boxes are drawn over the photo, not into it: the *Show*
+   bar above the viewer hides or shows each hazard type and turns the labels
+   on or off (remembered on that computer), and *Original* shows the bare
+   photo. Each row of the detection list gives the box's size **on the
+   ground**, in metres, from the photo's altitude and camera, and a
+   confidence band — *high* (85%+), *medium* (60%+) or *low* — instead of a
+   percentage that read "100%" on half the boxes.
+
+   **"Older detector".** Detection improved on 2026-11-05 (dead trees at the
+   scale the model was trained on, fallen trees, stricter flame/smoke). Scans
+   made before that carry an *OLDER DETECTOR* tag: their counts are not
+   comparable with new scans, and their severity is graded on thresholds made
+   for the new detector, so it is usually overstated. *↻ Re-detect* on the
+   scan runs the current detector over the same photos as a **new** scan —
+   the old one, and any review on it, is kept. It needs the original photos
+   to still be where they were.
 4. **Report** — *Generate Report* on the detail page. Each PDF is timestamped,
    never overwritten; all PDFs are listed on the Reports page.
    Runs are named after their flight — "May 2, 2025 · 14:52–14:55", from the

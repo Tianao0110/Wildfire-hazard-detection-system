@@ -21,24 +21,24 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b5b5ad" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
     </div>
     <div class="stat-value" id="st-total">—</div>
-    <div class="stat-note" id="st-total-note">runs in outputs/</div>
+    <div class="stat-note" id="st-total-note">on this computer</div>
   </div>
   <div class="card stat accent-red">
     <div class="stat-top"><span class="stat-label">HIGH SEVERITY</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
     </div>
     <div class="stat-value" id="st-high" style="color:var(--red);">—</div>
-    <div class="stat-note">flame or heavy dead-tree density</div>
+    <div class="stat-note" id="st-high-note">flame, or dense dead or fallen trees</div>
   </div>
   <div class="card stat">
     <div class="stat-top"><span class="stat-label">SCANS FLAGGED</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M4 21V4M4 4h13l-2 4 2 4H4"></path></svg>
     </div>
     <div class="stat-value" id="st-flagged">—</div>
-    <div class="stat-note">runs with at least one hazard</div>
+    <div class="stat-note">scans with at least one hazard</div>
   </div>
   <div class="card stat">
-    <div class="stat-top"><span class="stat-label">LATEST RUN</span>
+    <div class="stat-top"><span class="stat-label">LATEST SCAN</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b5b5ad" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
     </div>
     <div class="stat-value" id="st-last" style="font-size:22px; margin-top:11px;">—</div>
@@ -255,11 +255,11 @@ function drawRecent() {
         <span style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
               title="${esc(s.analysed ? "analysed " + s.analysed : "")}">${esc(s.title || s.date)}</span>
         <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-          ${sevMixBar(s.severity_mix, s.images)}${sevBadge(s.severity)}
+          ${sevMixBar(s.severity_mix, s.images)}${sevBadge(s.severity)}${staleChip(s)}
         </span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-top:6px; font-size:11px; color:var(--muted-2);">
-        <span class="mono">${plural(s.images, "photo")}</span>${types}
+        <span class="mono">${plural(s.images, "image")}</span>${types}
         ${s.flame_images ? `<span style="color:${KIND.flame.text}; font-weight:600;">flame in ${s.flame_images}</span>` : ""}
       </div>
       <div class="mono" style="font-size:10px; color:var(--muted-3); margin-top:4px;
@@ -288,11 +288,11 @@ function drawOverview() {
   const rv = SUMMARY.review || { pending: 0, reviewed: 0 };
   document.getElementById("ov-pending").textContent = rv.pending;
   document.getElementById("ov-pending-note").textContent =
-    rv.pending ? `flagged run${rv.pending === 1 ? "" : "s"} awaiting confirmation · ${rv.reviewed} reviewed`
-               : `all caught up · ${rv.reviewed} run${rv.reviewed === 1 ? "" : "s"} reviewed`;
+    rv.pending ? `flagged scan${rv.pending === 1 ? "" : "s"} awaiting confirmation · ${rv.reviewed} reviewed`
+               : `all caught up · ${rv.reviewed} scan${rv.reviewed === 1 ? "" : "s"} reviewed`;
   document.getElementById("ov-training").textContent = SUMMARY.training_boxes ?? 0;
   document.getElementById("dist-note").textContent =
-    `${SUMMARY.flagged_scans} flagged scan${SUMMARY.flagged_scans === 1 ? "" : "s"} across ${SUMMARY.total_scans} run${SUMMARY.total_scans === 1 ? "" : "s"}`;
+    `${SUMMARY.flagged_scans} flagged scan${SUMMARY.flagged_scans === 1 ? "" : "s"} across ${SUMMARY.total_scans} scan${SUMMARY.total_scans === 1 ? "" : "s"}`;
 }
 
 async function load() {
@@ -304,6 +304,12 @@ async function load() {
   window.__mapMonth = md.month;  // period shown in the map header
   document.getElementById("st-total").textContent = SUMMARY.total_scans;
   document.getElementById("st-high").textContent = SUMMARY.high_risk;
+  if (SUMMARY.stale_scans) {
+    // Old-detector runs are graded on thresholds made for the new one, so the
+    // count is honest only if it says how much of it they could be.
+    document.getElementById("st-high-note").textContent =
+      `${plural(SUMMARY.stale_scans, "scan")} from an older detector \u2014 re-detect to compare`;
+  }
   document.getElementById("st-flagged").textContent = SUMMARY.flagged_scans;
   if (SUMMARY.last_scan) {
     // the flight, then when it was analysed - the card used to show only the latter
