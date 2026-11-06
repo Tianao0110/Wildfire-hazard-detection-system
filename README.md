@@ -66,7 +66,9 @@ See the screenshot above.
 ### Scans - import a mission folder
 Point it at an SD-card dump. Only images are read - telemetry sidecars are ignored -
 and photos are grouped into flights by capture time, so a 1,500-photo day becomes a
-list of flights you can detect one at a time or in a chosen subset.
+list of flights you can detect one at a time or in a chosen subset. Detection runs in the
+background: every page's header shows its progress and time left, and the desktop app
+sends a system notification when a flight is done.
 
 ![Scans page: a mission folder grouped into flights](docs/screenshots/scans.jpg)
 
@@ -77,9 +79,10 @@ hazard type, or turn the labels on, and the frame underneath stays visible. Besi
 the detections in the current frame with click-to-locate, each sized in metres on the
 ground and given a confidence band, plus GPS and camera metadata and per-frame severity.
 A scan made by an older version of the detector says so ("Older detector") and offers
-*Re-detect*, which runs the current one over the same photos as a new scan.
+*Re-detect*, which runs the current one over the same photos as a new scan. Zoomed in, a
+minimap in the corner shows the whole frame and where you are in it; click it to jump.
 
-![Scan detail: annotated frame, detections list and frame metadata](docs/screenshots/scan-detail.jpg)
+![Scan detail zoomed in: live boxes over the photo, a minimap of the whole frame, and box sizes in metres](docs/screenshots/scan-detail.jpg)
 
 ### Review - confirm what the model proposed
 Switch the viewer into review mode to delete false detections, relabel them, or draw
@@ -89,7 +92,7 @@ work cannot be lost by accident: leaving asks first, and every change is kept in
 draft that is offered back if the window closes. Saving writes the verdict back
 everywhere - the detail page, the map and the report all follow it.
 
-![Box review editor](docs/screenshots/review-editor.jpg)
+![Box review editor with the keyboard-shortcut sheet open](docs/screenshots/review-editor.jpg)
 
 ### Map
 All hazard sites on offline satellite imagery, with month and hazard-type filters. A pin
