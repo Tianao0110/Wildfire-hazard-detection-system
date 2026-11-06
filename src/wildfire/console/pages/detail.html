@@ -8,6 +8,18 @@
 <style>
   .preview-box { overflow:hidden; }
   #stage { transform-origin: 0 0; }
+  /* Minimap: the whole frame, with a frame around the part on screen. Shown
+     only while some of the image is off screen (see updateMinimap). */
+  .minimap { position: absolute; right: 12px; bottom: 12px; z-index: 3; width: 184px;
+             line-height: 0; border-radius: 6px; overflow: hidden; cursor: crosshair;
+             border: 1px solid rgba(255,255,255,.55); box-shadow: 0 4px 16px rgba(0,0,0,.45);
+             background: #0d1011; touch-action: none; }
+  .minimap[hidden] { display: none; }
+  .minimap img { width: 100%; display: block; opacity: .85; }
+  .minimap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .minimap svg rect { stroke: rgba(0,0,0,.6); stroke-width: .5px; vector-effect: non-scaling-stroke; }
+  .mm-view { position: absolute; border: 2px solid #fff; border-radius: 2px; pointer-events: none;
+             box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 0 999px rgba(0,0,0,.35); }
   /* Locate-a-detection ring. Uses the severity token rather than a hex copy so
      it tracks the palette; colour-mix supplies the fading halo. */
   @keyframes focusPulse {
@@ -363,6 +375,7 @@ function applyZoom() {
     st.style.transform = `translate(${panX}px, ${panY}px)`;
   }
   updateOverlayScale();
+  updateMinimap();
   // Only shown when there is somewhere to go; at 1x on a fitted image it was
   // permanent instructions taking space from the header.
   const hint = document.getElementById("zoom-hint");
@@ -371,6 +384,63 @@ function applyZoom() {
 }
 
 function resetZoom() { zoom = 1; panX = panY = 0; applyZoom(); }
+
+/* Minimap. Zoomed to 6x on a 5280 px frame, the viewer shows a few metres of
+   ground and nothing says where in the frame they are; the minimap shows the
+   whole frame, the boxes on it, and a frame around what is on screen. */
+function minimapSvg(im) {
+  const W = im.width || 1, H = im.height || 1;
+  const rects = shownBoxes(curImage)
+    .filter(b => EDIT || !LAYERS.hidden.has(b.label))
+    .map(b => `<rect x="${b.x1}" y="${b.y1}" width="${Math.max(b.x2 - b.x1, W / 160)}"
+      height="${Math.max(b.y2 - b.y1, H / 160)}" fill="${LABEL_COLORS[b.label] || KIND.deadtree.color}"></rect>`);
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${rects.join("")}</svg>`;
+}
+
+function updateMinimap() {
+  const mm = document.getElementById("minimap"), st = document.getElementById("stage");
+  const box = document.getElementById("preview");
+  if (!mm || !st || !box) return;
+  const show = zoom > 1 || contentOverflows();
+  mm.hidden = !show;
+  if (!show) return;
+  const s = st.getBoundingClientRect(), b = box.getBoundingClientRect();
+  if (!s.width || !s.height) return;
+  const clamp = v => Math.min(1, Math.max(0, v));
+  const x1 = clamp((b.left - s.left) / s.width), x2 = clamp((b.right - s.left) / s.width);
+  const y1 = clamp((b.top - s.top) / s.height), y2 = clamp((b.bottom - s.top) / s.height);
+  Object.assign(mm.querySelector(".mm-view").style, {
+    left: `${x1 * 100}%`, top: `${y1 * 100}%`,
+    width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
+  });
+}
+
+/* Centre the view on the minimap point under the pointer - click to jump,
+   drag to sweep. The events stop here so the viewer underneath neither pans
+   nor (in review) starts drawing a box. */
+function minimapGo(e) {
+  const mm = document.getElementById("minimap"), st = document.getElementById("stage");
+  const box = document.getElementById("preview");
+  const m = mm.getBoundingClientRect(), s = st.getBoundingClientRect(), b = box.getBoundingClientRect();
+  const fx = Math.min(1, Math.max(0, (e.clientX - m.left) / m.width));
+  const fy = Math.min(1, Math.max(0, (e.clientY - m.top) / m.height));
+  panX += (b.left + b.width / 2 - fx * s.width) - s.left;
+  panY += (b.top + b.height / 2 - fy * s.height) - s.top;
+  applyZoom();
+}
+let minimapDrag = false;
+function wireMinimap() {
+  const mm = document.getElementById("minimap");
+  if (!mm) return;
+  mm.addEventListener("pointerdown", e => {
+    e.stopPropagation(); e.preventDefault();
+    minimapDrag = true; mm.setPointerCapture(e.pointerId); minimapGo(e);
+  });
+  mm.addEventListener("pointermove", e => { if (minimapDrag) { e.stopPropagation(); minimapGo(e); } });
+  mm.addEventListener("pointerup", e => { e.stopPropagation(); minimapDrag = false; });
+  for (const type of ["dblclick", "click"]) mm.addEventListener(type, e => e.stopPropagation());
+  mm.addEventListener("wheel", e => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+}
 
 const previewEl = document.getElementById("preview");
 previewEl.addEventListener("wheel", e => {
@@ -573,11 +643,17 @@ function drawPreview() {
             title="wheel: zoom · drag: pan · double-click: reset">
          <img id="stage-img" src="${esc(url)}" alt="${esc(im.name)}" draggable="false">
          ${EDIT || (curView === "annotated" && im.original_url) ? overlaySvg(im) : ""}
+       </div>
+       <div id="minimap" class="minimap" hidden title="Click or drag to move the view">
+         <img src="${esc(url)}" alt="" draggable="false">
+         ${EDIT || (curView === "annotated" && im.original_url) ? minimapSvg(im) : ""}
+         <div class="mm-view"></div>
        </div>`
     : `<span class="mono" style="color:#cdd6c0; opacity:.5; font-size:12px; text-align:center; line-height:1.7;">${empty}</span>`;
   // #stage is rebuilt above, so fitW belongs to an element that no longer
   // exists; re-measure once the new frame has laid out.
   const simg = document.getElementById("stage-img");
+  wireMinimap();
   if (simg) {
     simg.addEventListener("load", measureFit);
     if (simg.complete) measureFit();

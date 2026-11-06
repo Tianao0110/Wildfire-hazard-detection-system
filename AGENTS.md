@@ -431,7 +431,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 247 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 248 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`; `jobs.py` and `desktop.py` are covered
   for their logic (time left, finish hooks, notifications, window placement)

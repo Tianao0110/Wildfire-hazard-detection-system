@@ -373,3 +373,16 @@ def test_wheel_zoom_measures_where_the_frame_landed():
     after = wheel[wheel.index("zoom = nz"):]
     assert after.index("applyZoom()") < after.index("getBoundingClientRect()"), \
         "the wheel handler must measure the stage after applying the new zoom"
+
+
+def test_the_minimap_follows_the_view_and_keeps_its_clicks():
+    """The minimap frame is redrawn wherever the view changes, and a click on it
+    must not reach the viewer underneath - in review that would draw a box."""
+    html = DETAIL_HTML.read_text(encoding="utf-8")
+    apply = html[html.index("function applyZoom"):]
+    apply = apply[:apply.index("\n}\n")]
+    assert "updateMinimap()" in apply
+    wire = html[html.index("function wireMinimap"):]
+    wire = wire[:wire.index("\n}\n")]
+    assert wire.count("stopPropagation") >= 4
+    assert 'id="minimap"' in html and "wireMinimap();" in html
