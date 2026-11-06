@@ -643,6 +643,31 @@ Repo rule: commits carry no AI signature lines.
       the change was tested in - but nobody has run it on Windows yet
 - [x] Suite **183 -> 190** tests, the new ones running identically on either OS
 
+## Batch 31 - a neutral identity for a public portfolio (2026-11-05)
+
+- [x] **The SAIT logo and brand blue are gone from the product.** The repository
+      is public and serves as a portfolio after graduation; the logo is SAIT's
+      registered trademark and its brand guidelines require a licence for use by
+      a third party. Used as the window icon, the console header and the PDF
+      banner, it read as "a SAIT product". Replaced with a neutral mark - two
+      conifers on a pine-green tile - in `branding/logo.png`, the tracked
+      Windows `assets/wildfire.ico`, and the mobile app's logo; `brand.json`
+      now uses the console's own pine green instead of `#0072BC`. The README
+      states the factual relationship in words instead: a capstone project at SAIT
+- [x] **The mobile app's icon, adaptive icon, splash and favicon** were still
+      Expo's grey placeholders; they carry the same mark now
+- [x] **`branding/README.txt` claimed the folder was gitignored.** It has been
+      tracked since the logo landed; corrected, with a note not to commit an
+      organisation's logo without written permission
+- [x] **`scripts/generate_report.py` produced a plainer PDF than the console** -
+      no logo, no satellite backdrop, default page caps - because it passed none
+      of the arguments the Reports page passes. Found by checking the new
+      branding in an actual generated report. It now passes the same four
+- [x] **README states that no drone imagery is included**: the development
+      photos were provided under the capstone agreement and are not
+      redistributable. (One frame, `1.JPG`, remains in the history from an early
+      upload - see the open item below.)
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

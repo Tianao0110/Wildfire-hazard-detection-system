@@ -20,7 +20,7 @@ import {
 } from "./sync";
 
 const SAMPLE = require("./assets/sample_results.json"); // fallback until first sync
-const LOGO = require("./assets/logo.png");                // SAIT mark, matches desktop console
+const LOGO = require("./assets/logo.png");                // project mark, matches desktop console
 
 const RISK_COLORS = { High: "#D93A3A", Medium: "#E5A50A", Low: "#3A7D44" };
 
@@ -539,7 +539,7 @@ const st = StyleSheet.create({
   brandSub: { fontSize: 10.5, color: "#8B978E", marginTop: 1 },
 
   runRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-  subtitle: { fontSize: 12.5, color: "#0072BC", fontWeight: "600" },
+  subtitle: { fontSize: 12.5, color: "#2D5A3D", fontWeight: "600" },
   mono: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 11.5 },
   syncMeta: { fontSize: 11, color: "#8B978E", marginTop: 6 },
   syncBtn: {
