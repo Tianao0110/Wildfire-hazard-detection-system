@@ -26,12 +26,12 @@ JPEG_Q = [cv2.IMWRITE_JPEG_QUALITY, 88]
 # Review labels offered in the manual annotator + their box colors (RGB).
 # Same palette as annotate.py / report.py / console.js -- see report.py for why
 # smoke and dead tree are no longer orange and yellow.
-REVIEW_LABELS = ["Dead Tree", "Flame", "Smoke", "Fallen Log"]
+REVIEW_LABELS = ["Dead Tree", "Fallen Tree", "Flame", "Smoke"]
 REVIEW_COLORS = {
     "Dead Tree": (217, 205, 176),  # bone
     "Flame": (224, 85, 85),        # red
     "Smoke": (84, 110, 122),       # slate
-    "Fallen Log": (124, 77, 255),  # purple
+    "Fallen Tree": (41, 182, 246),  # sky blue
 }
 DISPLAY_MAX = 1600  # downscale big images for the in-browser annotator
 

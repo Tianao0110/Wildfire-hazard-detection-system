@@ -141,7 +141,7 @@ config/settings.json    all settings (editable in the Settings page)
 |------|-----|
 | **Change the logo / app name** | Drop `logo.png` into `branding/`, edit `branding/brand.json`, restart the app. Applies to the UI *and* the PDF. |
 | **Tune detection** (confidence, tile size) | Settings page → Detection. Takes effect on the next run. |
-| **Change severity thresholds** | Settings page → Display severity (dead trees per image). |
+| **Change severity thresholds** | Settings page → Display severity (standing and fallen trees per image; recalibrate after changing a detector). |
 | **Set who produced a run** | Settings page → Operator name. Shows on reports. Optional; it is *not* a login. |
 | **Add your trained model** | Put `dead_tree.onnx` + `dead_tree.labels.txt` into `models/`. The app picks it up automatically. If boxes look wrong, flip *Normalize* / *Channel order* in Settings. |
 | **Download map for a new area** | Map page → *⬇ Map data* → pick "Around my scanned area" (needs internet once). |

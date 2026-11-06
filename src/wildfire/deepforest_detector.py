@@ -27,7 +27,7 @@ from typing import Callable, Optional
 
 from .config import Settings
 from .device import pick_device
-from .gps import ground_sample_distance_cm
+from .gps import downscale_factor, ground_sample_distance_cm
 from .types import Detection
 
 ProgressFn = Optional[Callable[[str], None]]
@@ -156,10 +156,6 @@ class DeepForestDeadTreeDetector:
             return m.predict_tile(raster_path=image_path, **kwargs)
         return m.predict_tile(image_path, **kwargs)
 
-    # Below this there is nothing worth resampling for, and resampling UP is
-    # never right: it invents detail the sensor did not record.
-    _MIN_DOWNSCALE = 1.2
-
     @contextlib.contextmanager
     def _at_training_scale(self, image_path: str):
         """Yield (path, box_scale): the frame resampled toward the scale the
@@ -181,11 +177,11 @@ class DeepForestDeadTreeDetector:
         scale is worse than running at the one the operator actually flew.
         """
         target = getattr(self.settings, "df_target_gsd_cm", 0) or 0
-        gsd = ground_sample_distance_cm(image_path) if target > 0 else None
-        factor = (target / gsd) if gsd and gsd > 0 else 0.0
-        if factor < self._MIN_DOWNSCALE:
+        factor = downscale_factor(image_path, target)
+        if factor == 1.0:
             yield str(image_path), 1.0
             return
+        gsd = ground_sample_distance_cm(image_path)
 
         from PIL import Image as PILImage
 

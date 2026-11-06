@@ -41,6 +41,15 @@ class ModelSource:
     fallback_url: str = ""
     labels_filename: str = ""  # backend="onnx": class-names file (Custom Vision labels.txt)
     enabled: bool = True
+    # --- backend="yolo" only; the defaults reproduce the old behaviour ---
+    # Ground resolution the model was trained at; each frame is resampled toward
+    # it before inference (0 = run at native scale). See gps.ground_sample_distance_cm.
+    target_gsd_cm: float = 0.0
+    slice_size: int = 0        # SAHI tile edge for this model (0 = Settings.slice_size)
+    merge_ios: float = 0.5     # GREEDYNMM intersection-over-smaller to merge tiles
+    # raw model class -> display label; "" drops the class. Unlisted classes go
+    # through models.display_for as before.
+    class_map: dict = field(default_factory=dict)
 
 
 def _default_model_sources() -> list[ModelSource]:
@@ -61,6 +70,26 @@ def _default_model_sources() -> list[ModelSource]:
                 "https://raw.githubusercontent.com/sayedgamal99/"
                 "Real-Time-Smoke-Fire-Detection-YOLO11/main/models/best_nano_111.pt"
             ),
+        ),
+        # Fallen trees: instance segmentation of downed and standing deadwood from
+        # RGB UAV imagery, Mayra et al. 2025 (Remote Sensing of Environment 329,
+        # 114906), trained in Finnish boreal forest at ~4-5 cm/px on 640 px chips.
+        # Only its fallen class is used: the crown model above already covers
+        # standing dead trees, and this one found ~2 per frame that would double
+        # count them. AGPL-3.0, the same licence Ultralytics itself carries.
+        ModelSource(
+            key="deadwood",
+            filename="deadwood_yolov8s.pt",
+            label="Fallen trees (YOLOv8 deadwood, Mayra et al. 2025)",
+            backend="yolo",
+            hf_repo_id="mayrajeo/yolov8-deadwood",
+            hf_filename="models/YOLOv8s_both.pt",
+            target_gsd_cm=4.5,
+            slice_size=640,
+            # The authors merge their tiles with GREEDYNMM at IOS 0.2; looser than
+            # our 0.5 default, it joins pieces of one log split across a tile edge.
+            merge_ios=0.2,
+            class_map={"groundwood": "Fallen Tree", "uprightwood": ""},
         ),
         # Phase-2 custom model: train on customvision.ai (compact domain), export to
         # ONNX, drop model + labels into models/ — it is picked up automatically.
@@ -153,8 +182,16 @@ class Settings:
     # Dead trees are the primary target, so severity = avg dead trees per image.
     # Calibrated on real imagery: 67 frames of the May 2025 flight run 27..102
     # dead trees each, median 60. The old 10 / 3 graded everything High.
-    severity_deadtrees_high: float = 80.0  # >= this per image -> High
-    severity_deadtrees_medium: float = 45.0  # >= this per image -> Medium
+    # Per-frame densities for the display-only severity badge, calibrated on 49
+    # real frames run through the full pipeline (2026-11-05) at about the 85th /
+    # 22nd percentile of each count. The dead-tree pair was 80 / 45 until the
+    # crown model started seeing frames at its training scale: that cut its count
+    # from ~70 to ~20 per frame, and 80 / 45 would have graded nearly everything
+    # Low. Recalibrate whenever a detector or its scale changes.
+    severity_deadtrees_high: float = 39.0  # >= this per image -> High
+    severity_deadtrees_medium: float = 13.0  # >= this per image -> Medium
+    severity_fallen_high: float = 46.0  # fallen trees per image -> High (0 = not graded)
+    severity_fallen_medium: float = 7.0  # fallen trees per image -> Medium (0 = not graded)
 
     # --- ONNX detector (backend="onnx", e.g. Azure Custom Vision export) ---
     onnx_input_size: int = 640  # fallback when the model input has dynamic H/W
@@ -223,6 +260,12 @@ def load_settings(path: Optional[Path] = None) -> Settings:
             if isinstance(entry, dict):
                 sources.append(ModelSource(**{k: v for k, v in entry.items() if k in ms_keys}))
         if sources:
+            # A settings.json that lists model_sources used to REPLACE the
+            # defaults outright, so a model added in a release never reached an
+            # existing install. Append any default whose key the file lacks; a
+            # source the operator turned off is kept, with its flag, as written.
+            have = {src.key for src in sources}
+            sources += [d for d in _default_model_sources() if d.key not in have]
             kwargs["model_sources"] = sources
 
     settings = Settings(**kwargs)

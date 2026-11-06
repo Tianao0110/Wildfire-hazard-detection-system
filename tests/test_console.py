@@ -91,13 +91,13 @@ def test_scan_summary_reports_the_severity_mix_not_just_the_worst(tmp_path):
                 "gps": None, "detections": dets, "flagged": bool(dets)}
 
     images = [frame("a.jpg", 5, flame=1),  # flame -> high, on its own
-              frame("b.jpg", 90),          # >= 80 -> high
-              frame("c.jpg", 50),          # >= 45 -> medium
-              frame("d.jpg", 10),          # -> low
+              frame("b.jpg", 45),          # >= 39 -> high
+              frame("c.jpg", 20),          # >= 13 -> medium
+              frame("d.jpg", 5),           # -> low
               frame("e.jpg", 0)]           # -> none
     (run / "batch.json").write_text(json.dumps({
         "batch_info": {"image_count": len(images)},
-        "stats": {"detections_by_type": {"Dead Tree": 155, "Flame": 1}},
+        "stats": {"detections_by_type": {"Dead Tree": 75, "Flame": 1}},
         "images": images,
     }), encoding="utf-8")
 
@@ -111,13 +111,15 @@ def test_scan_summary_reports_the_severity_mix_not_just_the_worst(tmp_path):
 def test_default_severity_thresholds_separate_real_densities():
     """The defaults must actually grade real imagery into more than one level.
 
-    They did not: at 10 / 3 per image every frame of the May flight (27..102 dead
-    trees, median 60) came out High and the badge was decoration. These are the
-    real quartiles, so a regression back to token thresholds fails here.
+    They did not: at 10 / 3 per image every frame of the May flight came out
+    High and the badge was decoration. These are percentiles of 49 real frames
+    run through the pipeline as it is now (crown model at its training scale,
+    2..55 dead trees per frame, median 20), so a regression back to thresholds
+    fitted to some other detector fails here.
     """
-    low_frame = {"Dead Tree": 30}       # p10 of the real distribution
-    typical = {"Dead Tree": 60}         # median
-    dense = {"Dead Tree": 95}           # p95
+    low_frame = {"Dead Tree": 7}        # p10 of the real distribution
+    typical = {"Dead Tree": 20}         # median
+    dense = {"Dead Tree": 49}           # p95
 
     assert display_severity(low_frame, 1) == "low"
     assert display_severity(typical, 1) == "medium"
@@ -457,7 +459,8 @@ def test_cluster_sites_matches_the_naive_scan():
                     break
             if target is None:
                 sites.append({"lat": p["lat"], "lon": p["lon"], "severity": p["severity"],
-                              "kind": p.get("kind", "deadtree"), "count": 0, "members": []})
+                              "kind": p.get("kind", "deadtree"), "kinds": [], "count": 0,
+                              "members": []})
                 target = sites[-1]
             n = target["count"]
             target["lat"] = (target["lat"] * n + p["lat"]) / (n + 1)
@@ -467,6 +470,11 @@ def test_cluster_sites_matches_the_naive_scan():
                 target["severity"] = p["severity"]
             if KIND_ORDER.get(p.get("kind"), 0) > KIND_ORDER.get(target["kind"], 0):
                 target["kind"] = p["kind"]
+            # every hazard type at the site, most critical first
+            for k in p.get("kinds") or [p.get("kind", "deadtree")]:
+                if k not in target["kinds"]:
+                    target["kinds"].append(k)
+            target["kinds"].sort(key=lambda k: -KIND_ORDER.get(k, 0))
             target["members"].append({k: p[k] for k in ("run_id", "name", "severity", "thumb")
                                       if k in p})
         return sites

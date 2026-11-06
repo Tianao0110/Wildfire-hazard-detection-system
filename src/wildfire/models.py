@@ -3,7 +3,8 @@
 Phase 1 detects hazardous DEAD TREES (primary) plus FLAME and SMOKE (secondary).
 There may be one multi-class model or several single-purpose models in models/.
 The pipeline runs every available model and merges detections; this module maps
-each raw class name to a display label ("Dead Tree" / "Flame" / "Smoke") so colors
+each raw class name to a display label ("Dead Tree" / "Fallen Tree" / "Flame" /
+"Smoke") so colors
 and statistics are consistent regardless of which model produced a detection.
 
 Download manager:
@@ -24,6 +25,10 @@ from .config import ModelSource, Settings
 
 # Ordered (display_label, keywords). First match wins.
 DISPLAY_RULES: list[tuple[str, tuple[str, ...]]] = [
+    # Before "Dead Tree": a fallen tree is dead too, and "deadwood" would claim it.
+    # No bare "log": matching is by substring, and "log" sits inside "catalog",
+    # "logo" and "dialog".
+    ("Fallen Tree", ("fallen", "groundwood", "downed", "down_wood")),
     ("Dead Tree", ("dead", "snag", "standing_dead", "standing-dead", "deadwood", "dry_tree", "dry-tree")),
     ("Flame", ("flame", "fire")),
     ("Smoke", ("smoke",)),

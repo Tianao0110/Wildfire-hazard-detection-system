@@ -38,7 +38,43 @@ const KIND = {
     label: "Dead Tree", color: "#D9CDB0", text: "#8a7c5c", on: "#5a5346",
     icon: "M12 21V7m0 4 3.5-3.5M12 13l-3.6-3.6M12 9 9 6M12 7l3-3",
   },
+  /* No colour reaches 3:1 luminance contrast against all three above (slate
+     is dark, bone is light, and the band between is too narrow from both
+     sides), so sky blue is separated by HUE: under simulated deuteranopia and
+     protanopia its nearest neighbour is dE 40+ away, wider than flame/bone
+     (30.1). The icon - a log lying diagonally with its cut end showing - keeps
+     colour from being the only channel. */
+  fallen: {
+    label: "Fallen Tree", color: "#29B6F6", text: "#0277BD", on: "#06324d",
+    icon: "M3.2 17.4 15.6 5.9a2.3 2.3 0 0 1 3.3.1 2.3 2.3 0 0 1-.1 3.3L6.4 20.8a2.3 2.3 0 0 1-3.3-.1 2.3 2.3 0 0 1 .1-3.3z",
+  },
 };
+/* Display label (as the API sends it) -> KIND key. Pages used to inline
+   `k === "Flame" ? "flame" : k === "Smoke" ? "smoke" : "deadtree"`, which
+   silently filed every new type under dead tree. */
+const KIND_BY_LABEL = { "Flame": "flame", "Smoke": "smoke", "Dead Tree": "deadtree", "Fallen Tree": "fallen" };
+const kindForLabel = label => KIND_BY_LABEL[label] || "deadtree";
+/* A site can hold several hazard types; it is shown if ANY of them passes the
+   pin filter. Its pin colour is still the most critical type there. */
+const siteKinds = s => ((s.kinds && s.kinds.length) ? s.kinds : [s.kind]).map(k => kindKey(k));
+/* The type a pin shows under the current filter: the most critical of its types
+   that is switched on. Colouring by the most critical type overall meant that
+   with only "Fallen Tree" selected, every site holding dead trees as well stayed
+   bone-coloured - the filter showed fallen-tree sites dressed as something else. */
+function shownKind(s, active) {
+  const kinds = siteKinds(s);   // most critical first, as data.map_data sorts them
+  return kinds.find(k => !active || active.has(k)) || kinds[0];
+}
+/* Re-dress existing Leaflet markers for a filter, in place: icon pins get a new
+   icon, the canvas circles used past MARKER_ICON_LIMIT get a new fill. */
+function recolorSiteMarkers(leaf, sites, active) {
+  sites.forEach((s, i) => {
+    const kind = shownKind(s, active);
+    const m = leaf.markers[i];
+    if (leaf.useIcons) m.setIcon(siteDivIcon({ ...s, kind }));
+    else m.setStyle({ fillColor: KIND[kind].color });
+  });
+}
 const kindOf = s => KIND[s.kind] || KIND.deadtree;
 const kindKey = k => (KIND[k] ? k : "deadtree");
 
@@ -370,7 +406,7 @@ function sitePopupHtml(s, i) {
     <div style="display:flex; gap:10px; max-width:250px;">
       ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:70px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #ddd; flex-shrink:0;">` : ""}
       <div style="min-width:0;">
-        ${kindBadge(s.kind)} <span class="badge ${s.severity}" style="margin-left:2px;">${SEV[s.severity].label.toUpperCase()}</span>
+        ${siteKinds(s).map(k => kindBadge(k)).join(" ")} <span class="badge ${s.severity}" style="margin-left:2px;">${SEV[s.severity].label.toUpperCase()}</span>
         <div style="font-size:12px; font-weight:600; margin-top:5px;">Site ${i + 1} · ${s.count} image${s.count === 1 ? "" : "s"}</div>
         <div class="mono" style="font-size:10px; color:#8a8a82;">${fmtCoord(s.lat, s.lon)}</div>
       </div>
