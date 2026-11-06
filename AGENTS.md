@@ -428,9 +428,11 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 232 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 246 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
-  Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
+  Python 3.13. Modules without coverage: `llm.py`; `jobs.py` and `desktop.py` are covered
+  for their logic (time left, finish hooks, notifications, window placement)
+  but not for the subprocess or the live window.
   `worker.py` covers its protocol only (progress file, error reporting, the
   settings snapshot) with `detectors`/`pipeline` stubbed - detection itself is
   exercised by `test_detect_smoke.py`.

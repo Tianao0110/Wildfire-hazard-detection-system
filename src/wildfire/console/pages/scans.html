@@ -550,7 +550,8 @@ function statusChip(s) {
 function actionCell(s) {
   if (s.status === "processing") {
     const j = s.job || {};
-    const label = j.total ? `${j.done}/${j.total}` : "starting";
+    const label = (j.total ? `${j.done}/${j.total}` : "starting")
+      + (j.eta_s != null ? ` \u00b7 ${fmtDuration(j.eta_s)} left` : "");
     return `<span class="mono" style="font-size:12px; color:var(--amber-text); font-weight:500;">${esc(j.current || "")} ${label}</span>`;
   }
   if (s.status === "failed")

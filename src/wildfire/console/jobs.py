@@ -18,7 +18,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from ..config import PROJECT_ROOT, Settings
 
@@ -32,10 +32,33 @@ class Job:
     current: str = ""
     error: Optional[str] = None
     created: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    finished: Optional[str] = None
+    # Pace is measured from the first finished image, not from launch: the
+    # worker spends 10-30 s importing torch and loading weights before it
+    # touches a photo, and counting that would make every early estimate wild.
+    _paced_from: Optional[tuple[float, int]] = field(default=None, repr=False)
+
+    def record_progress(self, done: int, now: Optional[float] = None) -> None:
+        now = time.monotonic() if now is None else now
+        if done > 0 and self._paced_from is None:
+            self._paced_from = (now, done)
+        self.done = done
+
+    def eta_seconds(self, now: Optional[float] = None) -> Optional[int]:
+        """Seconds left at the pace so far; None until two images give a pace."""
+        if self.state not in ("queued", "running") or self._paced_from is None:
+            return None
+        t0, d0 = self._paced_from
+        if self.done <= d0 or not self.total:
+            return None
+        now = time.monotonic() if now is None else now
+        per_image = (now - t0) / (self.done - d0)
+        return max(0, round(per_image * (self.total - self.done)))
 
     def to_dict(self) -> dict:
         return {"id": self.id, "state": self.state, "total": self.total, "done": self.done,
                 "current": self.current, "error": self.error, "created": self.created,
+                "finished": self.finished, "eta_s": self.eta_seconds(),
                 "progress": round(self.done / self.total, 3) if self.total else 0.0}
 
 
@@ -43,6 +66,10 @@ class JobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        # Called with the Job when it ends (done or error), from the monitor
+        # thread. The desktop window hooks in here to notify the operator, who
+        # has usually walked away from a 20-minute flight.
+        self.on_finish: list[Callable[[Job], None]] = []
 
     # ------------------------------------------------------------- queries
     def get(self, job_id: str) -> Optional[Job]:
@@ -53,6 +80,14 @@ class JobManager:
 
     def all(self) -> list[Job]:
         return sorted(self._jobs.values(), key=lambda j: j.created, reverse=True)
+
+    def _finished(self, job: Job) -> None:
+        job.finished = datetime.now().isoformat(timespec="seconds")
+        for callback in list(self.on_finish):
+            try:
+                callback(job)
+            except Exception as exc:  # a failed notification must not kill the monitor
+                print(f"[jobs] on_finish callback failed: {exc}")
 
     def reset_detectors(self) -> None:
         """No-op since workers are per-job processes; kept for API compatibility."""
@@ -95,7 +130,7 @@ class JobManager:
             while True:
                 try:
                     p = json.loads(progress_file.read_text(encoding="utf-8"))
-                    job.done = int(p.get("done", job.done))
+                    job.record_progress(int(p.get("done", job.done)))
                     job.total = int(p.get("total", job.total)) or job.total
                     job.current = p.get("current", "")
                     if p.get("state") == "error":
@@ -109,6 +144,7 @@ class JobManager:
                     job.state = "error" if job.error else "done"
                     job.current = ""
                     log.close()
+                    self._finished(job)
                     return
                 time.sleep(1.0)
 

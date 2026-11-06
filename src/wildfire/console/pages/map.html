@@ -244,6 +244,9 @@ function openFullMap(i) {
 
 document.getElementById("fs-toggle").addEventListener("click", () => setFullscreen(!FULLSCREEN));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && FULLSCREEN) setFullscreen(false); });
+window.WF_PAGE_SHORTCUTS = [
+  { title: "Map", keys: [["Double-click a pin", "Fullscreen map zoomed to that site"], ["Esc", "Leave fullscreen"]] },
+];
 
 // Fallback map: same double-click gesture as the Leaflet markers.
 document.getElementById("map").addEventListener("dblclick", e => {

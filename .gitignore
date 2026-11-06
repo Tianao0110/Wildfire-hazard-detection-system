@@ -53,3 +53,4 @@ map/
 # so a fresh clone looks right without anyone hunting for an asset. A deployment
 # that drops in a different logo will show it as a modified file, which is the
 # honest signal that the build is rebranded.
+config/window_state.json
