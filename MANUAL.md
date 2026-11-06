@@ -106,8 +106,29 @@ Review boxes (confirm/draw/delete)  →  Generate Report (PDF)  →  Map / Repor
    open the run → *✎ Review boxes* → wheel-zoom in, delete false boxes, draw
    missed hazards, set labels → *Save review*. Confirmed boxes become the
    training set (`labels.json`) and all counts/maps update.
+   It is built to be done from the keyboard — press **?** for the full list:
+
+   | Key | Does |
+   |---|---|
+   | ← → | Previous / next photo |
+   | Enter | Mark this photo reviewed and go to the next |
+   | 1 2 3 4 | Label: Dead Tree, Fallen Tree, Flame, Smoke |
+   | Tab / Shift+Tab | Select the next / previous box and zoom to it |
+   | Delete | Delete the selected box |
+   | Ctrl+Z / Ctrl+Shift+Z | Undo / redo (Cmd on a Mac) |
+   | Ctrl+S | Save the review |
+
+   **Your review cannot be lost by accident.** Leaving the page with unsaved
+   changes asks first, the page-letter shortcuts are switched off while you
+   review, and every change is also kept in a draft on this computer — if the
+   window closes or the computer restarts, opening the run again offers
+   *Restore and continue*.
 4. **Report** — *Generate Report* on the detail page. Each PDF is timestamped,
    never overwritten; all PDFs are listed on the Reports page.
+   Runs are named after their flight — "May 2, 2025 · 14:52–14:55", from the
+   photos' capture time — and dated by when they were **flown**, with the
+   analysis time shown beside it. *✎ Rename* on a run gives it your own name;
+   clearing the name goes back to the capture time.
 5. **Overview** — Dashboard (stats, map, review backlog, training-set size),
    Review page (day-by-day backlog), Map page (site markers: flame red, smoke
    slate grey, dead tree bone white, each with its own icon; nearby images

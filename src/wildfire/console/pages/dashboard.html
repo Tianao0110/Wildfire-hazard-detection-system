@@ -38,7 +38,7 @@
     <div class="stat-note">runs with at least one hazard</div>
   </div>
   <div class="card stat">
-    <div class="stat-top"><span class="stat-label">LAST SCAN</span>
+    <div class="stat-top"><span class="stat-label">LATEST RUN</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b5b5ad" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
     </div>
     <div class="stat-value" id="st-last" style="font-size:22px; margin-top:11px;">—</div>
@@ -234,7 +234,8 @@ function drawRecent() {
   const sort = document.getElementById("sort").value;
   const rank = { high: 3, medium: 2, low: 1 };
   let list = [...SUMMARY.recent];
-  if (q) list = list.filter(s => (s.id + " " + s.date + " " + (s.severity || "")).toLowerCase().includes(q));
+  if (q) list = list.filter(s => [s.title, s.id, s.flown_date, s.date, s.severity]
+    .join(" ").toLowerCase().includes(q));
   if (sort === "oldest") list.reverse();
   else if (sort === "risk") list.sort((a, b) => (rank[b.severity] || 0) - (rank[a.severity] || 0));
   else if (sort === "images") list.sort((a, b) => b.images - a.images);
@@ -251,14 +252,14 @@ function drawRecent() {
     <a href="/scans/${encodeURIComponent(s.id)}" style="display:block; padding:12px 18px; border-bottom:1px solid var(--line-soft);"
        onmouseover="this.style.background='#faf9f4'" onmouseout="this.style.background=''">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <span style="font-size:13px; font-weight:600; white-space:nowrap;">${esc(s.date)}
-          <span class="mono" style="font-weight:400; color:var(--muted-2);">${esc(s.time)}</span></span>
+        <span style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+              title="${esc(s.analysed ? "analysed " + s.analysed : "")}">${esc(s.title || s.date)}</span>
         <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
           ${sevMixBar(s.severity_mix, s.images)}${sevBadge(s.severity)}
         </span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-top:6px; font-size:11px; color:var(--muted-2);">
-        <span class="mono">${s.images} img</span>${types}
+        <span class="mono">${plural(s.images, "photo")}</span>${types}
         ${s.flame_images ? `<span style="color:${KIND.flame.text}; font-weight:600;">flame in ${s.flame_images}</span>` : ""}
       </div>
       <div class="mono" style="font-size:10px; color:var(--muted-3); margin-top:4px;
@@ -299,13 +300,15 @@ async function load() {
     api("/api/summary"), api("/api/map-info"), api("/api/map-data?month=latest"),
   ]);
   SUMMARY = summary; INFO = info; SITES = md.sites;
+  window.WF_RUN_TITLES = md.run_titles || {};
   window.__mapMonth = md.month;  // period shown in the map header
   document.getElementById("st-total").textContent = SUMMARY.total_scans;
   document.getElementById("st-high").textContent = SUMMARY.high_risk;
   document.getElementById("st-flagged").textContent = SUMMARY.flagged_scans;
   if (SUMMARY.last_scan) {
-    document.getElementById("st-last").textContent = `${SUMMARY.last_scan.date} · ${SUMMARY.last_scan.time}`;
-    document.getElementById("st-last-note").textContent = SUMMARY.last_scan.id;
+    // the flight, then when it was analysed - the card used to show only the latter
+    document.getElementById("st-last").textContent = SUMMARY.last_scan.flown_date || SUMMARY.last_scan.date;
+    document.getElementById("st-last-note").textContent = `analysed ${SUMMARY.last_scan.analysed}`;
   } else {
     document.getElementById("st-last").textContent = "—";
     document.getElementById("st-last-note").textContent = "no runs yet";

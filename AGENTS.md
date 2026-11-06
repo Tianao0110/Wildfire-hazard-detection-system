@@ -382,6 +382,24 @@ outputs/<run>_<timestamp>/
     because every `.pt` there is swept up. New defaults are appended by key; a
     switched-off source is skipped even if its file is present.
 
+19. **Long work must survive every way of leaving the page.** Box review was
+    one keystroke from loss: the single-letter page shortcuts (d/s/r/m/p/e)
+    called `location.href` directly, nothing asked before a nav link, and a
+    closed window took everything. Leaving now goes through `wfNavigate` and
+    `WF_LEAVE_GUARD` (console.js) - a page with unsaved work sets the guard; a
+    page doing keyboard-heavy work sets `WF_SUPPRESS_NAV_KEYS`; and the review
+    page keeps a localStorage draft it offers back on reopen. Do not rely on
+    the browser's `beforeunload` alone: WebView2 and WKWebView do not reliably
+    show it, and the desktop app is where operators work. Use `wfConfirm`, not
+    `window.confirm`, for the same reason. `tests/test_frontend_contract.py`
+    fails if a page shortcut goes back to `location.href`.
+20. **Name things for the person using them.** A run was its folder,
+    `console_20261105_191505`, dated by when the analysis ran - a year after
+    the flight in the real data. It now has a title (`run.json`, or built from
+    capture time by `gps.capture_window` / `flown_labels`) and the flight's
+    date, with the folder id kept small for whoever needs it. Show a run
+    through `runLabel()` in console.js so every page names it the same way.
+
 ---
 
 ## 8. Verification habits
@@ -400,7 +418,7 @@ outputs/<run>_<timestamp>/
 
 ## 9. Current state and open items
 
-- **Tests**: 203 passing, 4 skipped (fire/smoke weights absent; icon sizes too
+- **Tests**: 219 passing, 4 skipped (fire/smoke weights absent; icon sizes too
   small to measure). Green on Windows and on macOS 26 / Apple Silicon /
   Python 3.13. Modules without coverage: `llm.py`, `jobs.py`, `desktop.py`.
   `worker.py` covers its protocol only (progress file, error reporting, the
@@ -412,8 +430,8 @@ outputs/<run>_<timestamp>/
   there: Intel Macs, and cloud sync (no container was configured).
 - **Known weak spots**: ~14 silent `except Exception: pass` handlers and no
   unified logging (only `print` + `outputs/<run>/_worker.log`); training-set
-  export supports Azure Custom Vision only (no YOLO/COCO); no CI; review UI has
-  almost no keyboard shortcuts; `outputs/` grows without an archive feature.
+  export supports Azure Custom Vision only (no YOLO/COCO); no CI; `outputs/`
+  grows without an archive feature.
 - **Waiting on external conditions**: the trained `dead_tree.onnx` from Azure
   (drop into `models/` with its labels file), and a full 100-200 image flight
   shakedown.

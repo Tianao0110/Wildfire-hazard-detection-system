@@ -79,8 +79,11 @@ metadata, and per-frame severity.
 
 ### Review - confirm what the model proposed
 Switch the viewer into review mode to delete false detections, relabel them, or draw
-the ones the model missed. Saving writes the verdict back everywhere - the detail page,
-the map and the report all follow it.
+the ones the model missed. It is built for the keyboard - arrows between photos, Enter to
+mark one reviewed and move on, 1-4 for labels, Tab between boxes, undo and redo - and the
+work cannot be lost by accident: leaving asks first, and every change is kept in a local
+draft that is offered back if the window closes. Saving writes the verdict back
+everywhere - the detail page, the map and the report all follow it.
 
 ![Box review editor](docs/screenshots/review-editor.jpg)
 
@@ -260,7 +263,7 @@ src/wildfire/console/      the application UI
   pages/, static/          one HTML file per page, shared console.js/css, no build step
 mobile/                    Expo field viewer for phones (mobile/README.md)
 scripts/                   installer, CLI detection/report, model + map downloads, export
-tests/                     203 unit and integration tests
+tests/                     219 unit and integration tests
 branding/                  logo + name + colours, read by the UI and the PDF
 config/                    settings.example.json (settings.json is created on first run)
 models/ map/ outputs/      weights, offline tiles, run results (all gitignored)
@@ -335,7 +338,7 @@ If the exported model returns empty or garbled boxes, flip `onnx_normalize` or
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q          # 203 tests; heavy model tests skip themselves when weights are absent
+pytest -q          # 219 tests; heavy model tests skip themselves when weights are absent
 ```
 
 The suite runs on Windows and macOS. Tests that protect a fix were checked against a

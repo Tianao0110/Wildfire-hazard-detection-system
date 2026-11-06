@@ -10,6 +10,7 @@ so every entry point returns ``None`` rather than raising.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -195,6 +196,41 @@ def downscale_factor(path: str | Path, target_cm: float) -> float:
         return 1.0
     factor = target_cm / gsd
     return factor if factor >= MIN_DOWNSCALE else 1.0
+
+
+# ---------------------------------------------------------------- flight time
+# When a flight happened, from its photos - the run list, its title and the PDF
+# cover all date a run by this rather than by when it was analysed.
+
+def day_label(dt: datetime) -> str:
+    return f"{dt.strftime('%b')} {dt.day}, {dt.year}"   # "May 2, 2025" on every OS
+
+
+def capture_window(timestamps) -> Optional[tuple[datetime, datetime]]:
+    """Earliest and latest of some EXIF capture times ("YYYY:MM:DD HH:MM:SS")."""
+    times = []
+    for raw in timestamps:
+        ts = str(raw or "").strip()[:19]
+        for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                times.append(datetime.strptime(ts, fmt))
+                break
+            except ValueError:
+                continue
+    return (min(times), max(times)) if times else None
+
+
+def flown_labels(window: Optional[tuple[datetime, datetime]]) -> tuple[Optional[str], Optional[str]]:
+    """("May 2, 2025", "14:52-14:55"), or a day range and no times across days."""
+    if not window:
+        return None, None
+    start, end = window
+    if start.date() != end.date():
+        same_year = start.year == end.year
+        first = f"{start.strftime('%b')} {start.day}" + ("" if same_year else f", {start.year}")
+        return f"{first} \u2013 {day_label(end)}", None
+    t0, t1 = start.strftime("%H:%M"), end.strftime("%H:%M")
+    return day_label(start), (t0 if t0 == t1 else f"{t0}\u2013{t1}")
 
 
 def extract_timestamp(path: str | Path) -> Optional[str]:

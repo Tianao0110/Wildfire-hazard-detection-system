@@ -36,8 +36,20 @@
 
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin:6px 0 18px;">
     <div>
-      <h1 class="h1" id="d-title">Scan Detail</h1>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h1 class="h1" id="d-title">Scan Detail</h1>
+        <button type="button" id="d-rename" class="btn-quiet" style="padding:4px 10px; font-size:12px;"
+                title="Give this run a name of your own">&#9998; Rename</button>
+      </div>
+      <form id="d-rename-form" style="display:none; align-items:center; gap:8px; margin:6px 0 4px;">
+        <input class="input" id="d-rename-input" maxlength="80" style="width:min(420px, 60vw);"
+               aria-label="Run name" placeholder="e.g. Canmore Creek - north block">
+        <button type="submit" class="btn btn-primary" style="padding:7px 14px;">Save name</button>
+        <button type="button" class="btn-quiet" id="d-rename-cancel" style="padding:7px 12px;">Cancel</button>
+        <span style="font-size:11px; color:var(--muted-3);">empty = name from capture time</span>
+      </form>
       <p class="sub" id="d-sub"></p>
+      <p class="sub" id="d-when" style="margin-top:2px; font-size:12px;"></p>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:11px;" id="d-chips"></div>
     </div>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
@@ -94,10 +106,12 @@
             <option>Dead Tree</option><option>Fallen Tree</option><option>Flame</option><option>Smoke</option>
           </select>
           <button id="del-box" class="btn-quiet" style="padding:6px 10px;" disabled>Delete box</button>
-          <span style="font-size:11px; color:var(--muted-2); flex:1;">
-            Drag on the image to add a box · click a box to select · Delete key removes ·
-            what you leave here is what gets confirmed
+          <span style="font-size:11px; color:var(--muted-2); flex:1; min-width:0;">
+            <span class="edit-hint-text">Drag to add a box · click to select · what you leave here is what gets confirmed · </span>
+            <button type="button" id="show-keys" class="btn-link" style="font-size:11px;">
+              <span class="kbd">?</span> shortcuts</button>
           </span>
+          <span class="dirty-note" id="dirty-note"></span>
           <button id="cancel-edit" class="btn-quiet" style="padding:6px 12px;">Cancel</button>
           <button id="save-review" class="btn btn-primary" style="padding:7px 14px; font-size:12px;">Save review → training set</button>
         </div>
@@ -181,6 +195,76 @@ let EDIT = false;
 let boxesByImage = {};   // imageIndex -> [{x1,y1,x2,y2,label}]
 let selBox = -1;
 let drawing = null;
+
+/* ------------------------------------------------- unsaved review work
+   Review is long work - a 100-image flight is ~3,000 boxes - and it used to be
+   one click from loss: any nav link, the Back link, or a stray d/s/r/m/p/e key
+   left the page and dropped everything. Three layers now: every way of leaving
+   asks first (WF_LEAVE_GUARD, console.js); every change is also written to a
+   local draft, so a closed window or a crash can be recovered on reopen; and
+   changes can be undone one step at a time. */
+let DIRTY = false;
+const TOUCHED = new Set();        // image indices whose boxes were changed
+let HISTORY = [], FUTURE = [];    // undo / redo: snapshots of one image's boxes
+const DRAFT_KEY = `wf.reviewDraft.${RUN_ID}`;
+const UNDO_LIMIT = 300;
+
+const cloneBoxes = boxes => boxes.map(b => ({ ...b }));
+
+function remember() {             // call BEFORE changing the current image's boxes
+  HISTORY.push({ i: curImage, boxes: cloneBoxes(initBoxes(curImage)), sel: selBox });
+  if (HISTORY.length > UNDO_LIMIT) HISTORY.shift();
+  FUTURE = [];
+}
+
+function changed() {              // call AFTER changing the current image's boxes
+  DIRTY = true;
+  TOUCHED.add(curImage);
+  saveDraft();
+  updateDirtyNote(); updateEditControls(); drawPreview(); drawDetTable();
+}
+
+function stepHistory(from, to) {
+  if (!from.length) { toast(from === HISTORY ? "Nothing to undo" : "Nothing to redo", 1500); return; }
+  const snap = from.pop();
+  to.push({ i: snap.i, boxes: cloneBoxes(initBoxes(snap.i)), sel: selBox });
+  if (snap.i !== curImage) { curImage = snap.i; resetZoom(); }
+  boxesByImage[snap.i] = snap.boxes;
+  selBox = snap.sel < snap.boxes.length ? snap.sel : -1;
+  DIRTY = true; TOUCHED.add(snap.i); saveDraft();
+  updateDirtyNote(); updateEditControls(); drawPreview(); drawDetTable();
+}
+const undo = () => stepHistory(HISTORY, FUTURE);
+const redo = () => stepHistory(FUTURE, HISTORY);
+
+function saveDraft() {
+  try {
+    const images = {};
+    for (const i of TOUCHED) images[DETAIL.images_detail[i].name] = initBoxes(i);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ saved_at: new Date().toISOString(), images }));
+  } catch (e) { /* storage blocked or full: the leave guard still protects navigation */ }
+}
+function readDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (e) { return null; }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing to clear */ }
+}
+function resetDirty() {
+  DIRTY = false; TOUCHED.clear(); HISTORY = []; FUTURE = [];
+  clearDraft(); updateDirtyNote();
+}
+
+function updateDirtyNote() {
+  const n = TOUCHED.size;
+  document.getElementById("dirty-note").textContent =
+    DIRTY ? `Unsaved changes · ${n} image${n === 1 ? "" : "s"}` : "";
+}
+
+window.WF_LEAVE_GUARD = () => DIRTY
+  ? `You have unsaved review changes on ${TOUCHED.size} image${TOUCHED.size === 1 ? "" : "s"}. `
+    + "Leave without saving them? They stay in a local draft you can restore when you come back."
+  : "";
 
 /* Review-editor box colors. These MUST match KIND in console.js and the BGR
    constants in annotate.py — they drifted before (#E53935/#FB8C00 here vs
@@ -408,16 +492,22 @@ function drawPreview() {
             </div>`;
   }).join("");
   document.querySelectorAll("#thumbs [data-i]").forEach(el =>
-    el.addEventListener("click", () => {
-      curImage = +el.dataset.i; selBox = -1; drawing = null;
-      resetZoom(); drawPreview(); drawDetTable();
-    }));
+    el.addEventListener("click", () => goToImage(+el.dataset.i)));
+  const sel = document.querySelector("#thumbs .thumb-wrap.sel");
+  if (sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
   applyZoom();  // innerHTML replaced the stage — restore the current transform
   if (EDIT) wireOverlay();
   drawReviewControls();
   // Hooked here rather than at every call site: this already runs on every
   // image change, so the sidebar cannot fall out of step with the viewer.
   drawImagePanel();
+}
+
+function goToImage(i) {
+  const n = DETAIL.images_detail.length;
+  if (!n || i < 0 || i >= n || i === curImage) return;
+  curImage = i; selBox = -1; drawing = null;
+  resetZoom(); drawPreview(); drawDetTable();
 }
 
 /* Per-image review check — an explicit operator action, persisted server-side. */
@@ -438,11 +528,14 @@ function drawReviewControls() {
   btn.style.borderColor = on ? "var(--green-line)" : "";
 }
 
-document.getElementById("mark-reviewed").addEventListener("click", async () => {
+document.getElementById("mark-reviewed").addEventListener("click", () =>
+  setImageReviewed(!(DETAIL.images_detail[curImage] || {}).reviewed_by_user));
+
+async function setImageReviewed(next) {
   const ims = DETAIL.images_detail;
-  if (!ims.length) return;
+  if (!ims.length || DETAIL.results_only) return false;
   const im = ims[curImage];
-  const next = !im.reviewed_by_user;
+  if (!!im.reviewed_by_user === next) return true;
   const btn = document.getElementById("mark-reviewed");
   btn.disabled = true;
   try {
@@ -452,12 +545,14 @@ document.getElementById("mark-reviewed").addEventListener("click", async () => {
     });
     im.reviewed_by_user = next;   // local update — no full reload
     drawPreview();
+    return true;
   } catch (e) {
     toast("Could not update review state: " + e.message, 6000);
+    return false;
   } finally {
     btn.disabled = false;
   }
-});
+}
 
 /* ------------------------------------------------------------- editor wiring */
 function svgPoint(svg, ev) {
@@ -495,8 +590,12 @@ function wireOverlay() {
                   x2: Math.min(im.width, Math.max(drawing.x1, drawing.x2)), y2: Math.min(im.height, Math.max(drawing.y1, drawing.y2)),
                   label: document.getElementById("label-pick").value };
       if (b.x2 - b.x1 > 12 && b.y2 - b.y1 > 12) {
+        remember();
         initBoxes(curImage).push(b);
         selBox = initBoxes(curImage).length - 1;
+        drawing = null;
+        changed();
+        return;
       }
     } else if (drawing) {
       selBox = -1; // plain click on empty space deselects
@@ -510,33 +609,108 @@ function updateEditControls() {
   document.getElementById("del-box").disabled = selBox < 0;
 }
 
-document.addEventListener("keydown", ev => {
+function deleteSelected() {
   if (!EDIT || selBox < 0) return;
-  if (ev.key === "Delete" || ev.key === "Backspace") {
-    initBoxes(curImage).splice(selBox, 1);
-    selBox = -1;
-    updateEditControls(); drawPreview(); drawDetTable();
-  } else if (ev.key === "Escape") {
-    selBox = -1; drawPreview();
-  }
-});
-
-document.getElementById("del-box").addEventListener("click", () => {
-  if (selBox < 0) return;
+  remember();
   initBoxes(curImage).splice(selBox, 1);
   selBox = -1;
-  updateEditControls(); drawPreview(); drawDetTable();
+  changed();
+}
+
+function setLabel(label) {
+  const pick = document.getElementById("label-pick");
+  pick.value = label;
+  if (EDIT && selBox >= 0 && initBoxes(curImage)[selBox].label !== label) {
+    remember();
+    initBoxes(curImage)[selBox].label = label;
+    changed();
+  }
+}
+
+function selectNextBox(step) {
+  const n = initBoxes(curImage).length;
+  if (!n) return;
+  focusDetection(((selBox < 0 ? (step > 0 ? -1 : 0) : selBox) + step + n) % n);
+}
+
+/* Review is keyboard-first: a flight is thousands of boxes, and every one used
+   to need the mouse. Digits and arrows only - letters belong to the page nav,
+   which is switched off while reviewing. */
+const LABEL_KEYS = ["Dead Tree", "Fallen Tree", "Flame", "Smoke"];   // 1-4, the dropdown order
+
+const SHORTCUTS = [
+  ["&larr; &rarr;", "Previous / next image"],
+  ["Enter", "Mark this image reviewed and go to the next"],
+  ["1 2 3 4", "Label: Dead Tree, Fallen Tree, Flame, Smoke (selected box, and new boxes)"],
+  ["Tab / Shift+Tab", "Select the next / previous box and zoom to it"],
+  ["Delete", "Delete the selected box"],
+  ["Ctrl+Z / Ctrl+Shift+Z", "Undo / redo (Cmd on a Mac)"],
+  ["Ctrl+S", "Save the review"],
+  ["Esc", "Deselect, then reset the zoom"],
+  ["?", "Show this list"],
+];
+
+function showShortcuts() {
+  const back = document.createElement("div");
+  back.className = "wf-modal-back";
+  back.innerHTML = `<div class="wf-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <div style="font-size:15px; font-weight:600;">Keyboard shortcuts</div>
+      <div class="shortcut-sheet">${SHORTCUTS.map(([k, what]) =>
+        `<span>${k.split(" / ").map(x => `<span class="kbd">${x}</span>`).join(" / ")}</span><span>${what}</span>`).join("")}</div>
+      <div class="wf-modal-actions"><button type="button" class="btn btn-primary" data-close>Close</button></div>
+    </div>`;
+  const close = () => { back.remove(); document.removeEventListener("keydown", onKey, true); };
+  const onKey = e => { if (e.key === "Escape" || e.key === "?") { e.preventDefault(); e.stopPropagation(); close(); } };
+  back.addEventListener("click", e => { if (e.target === back || e.target.closest("[data-close]")) close(); });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(back);
+  back.querySelector("[data-close]").focus();
+}
+document.getElementById("show-keys").addEventListener("click", showShortcuts);
+
+document.addEventListener("keydown", ev => {
+  if (!DETAIL || document.querySelector(".wf-modal-back")) return;
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.activeElement?.isContentEditable) return;
+  const mod = ev.ctrlKey || ev.metaKey;
+  const key = ev.key;
+  const handled = () => ev.preventDefault();
+
+  if (mod && key.toLowerCase() === "z" && EDIT) { handled(); ev.shiftKey ? redo() : undo(); return; }
+  if (mod && key.toLowerCase() === "y" && EDIT) { handled(); redo(); return; }
+  if (mod && key.toLowerCase() === "s" && EDIT) { handled(); document.getElementById("save-review").click(); return; }
+  if (mod || ev.altKey) return;
+
+  if (key === "?") { handled(); showShortcuts(); return; }
+  if (key === "ArrowLeft") { handled(); goToImage(curImage - 1); return; }
+  if (key === "ArrowRight") { handled(); goToImage(curImage + 1); return; }
+  if (key === "Enter") {
+    handled();
+    setImageReviewed(true).then(ok => { if (ok) goToImage(curImage + 1); });
+    return;
+  }
+  if (key === "Escape") {
+    if (selBox >= 0) { selBox = -1; updateEditControls(); drawPreview(); }
+    else resetZoom();
+    return;
+  }
+  if (!EDIT) return;
+  if (key === "Delete" || key === "Backspace") { handled(); deleteSelected(); return; }
+  if (key === "Tab") { handled(); selectNextBox(ev.shiftKey ? -1 : 1); return; }
+  const n = "1234".indexOf(key);
+  if (n >= 0) { handled(); setLabel(LABEL_KEYS[n]); }
 });
 
-document.getElementById("label-pick").addEventListener("change", () => {
-  if (EDIT && selBox >= 0) {
-    initBoxes(curImage)[selBox].label = document.getElementById("label-pick").value;
-    drawPreview(); drawDetTable();
-  }
+document.getElementById("del-box").addEventListener("click", deleteSelected);
+
+document.getElementById("label-pick").addEventListener("change", e => {
+  setLabel(e.target.value);
+  e.target.blur();   // or the arrow keys would keep changing the dropdown
 });
 
 function setEdit(on) {
   EDIT = on;
+  window.WF_SUPPRESS_NAV_KEYS = on;
   selBox = -1; drawing = null;
   document.getElementById("edit-bar").style.display = on ? "" : "none";
   document.getElementById("d-edit").textContent = on ? "✎ Reviewing…" : "✎ Review boxes";
@@ -546,7 +720,18 @@ function setEdit(on) {
 }
 
 document.getElementById("d-edit").addEventListener("click", () => setEdit(!EDIT));
-document.getElementById("cancel-edit").addEventListener("click", () => { boxesByImage = {}; setEdit(false); });
+document.getElementById("cancel-edit").addEventListener("click", async () => {
+  if (DIRTY) {
+    const n = TOUCHED.size;
+    const discard = await wfConfirm(
+      `Discard your changes on ${n} image${n === 1 ? "" : "s"}? This cannot be undone.`,
+      { ok: "Discard changes", cancel: "Keep editing", danger: true });
+    if (!discard) return;
+  }
+  boxesByImage = {};
+  resetDirty();
+  setEdit(false);
+});
 
 document.getElementById("save-review").addEventListener("click", async () => {
   const btn = document.getElementById("save-review");
@@ -562,7 +747,9 @@ document.getElementById("save-review").addEventListener("click", async () => {
       body: JSON.stringify({ labels: payload }),
     });
     DETAIL = res.detail;
+    ALL_IMAGES = res.detail.images_detail;
     boxesByImage = {};
+    resetDirty();
     setEdit(false);
     draw();
     toast(`Saved ${res.saved} confirmed box${res.saved === 1 ? "" : "es"} — added to the training set (labels.json).`);
@@ -762,9 +949,16 @@ function drawSession() {
 }
 
 function draw() {
-  document.getElementById("d-title").textContent = `Scan Detail — ${DETAIL.date} · ${DETAIL.time}`;
+  // The flight's name, not "Scan Detail - <when the analysis ran>": the analysis
+  // date can be a year after the flight, and the run id says nothing to a crew.
+  document.getElementById("d-title").textContent = DETAIL.title || DETAIL.id;
+  document.title = `${DETAIL.title || DETAIL.id} \u2014 Wildfire Console`;
   document.getElementById("d-sub").textContent =
-    `${DETAIL.images} image${DETAIL.images === 1 ? "" : "s"} · ${countsLine(DETAIL.detections_by_type)}`;
+    `${plural(DETAIL.images, "photo")} · ${countsLine(DETAIL.detections_by_type)}`;
+  const flown = DETAIL.flown_date
+    ? `Flown ${DETAIL.flown_date}${DETAIL.flown_time ? " · " + DETAIL.flown_time : ""}`
+    : "Capture time not in the photos' EXIF";
+  document.getElementById("d-when").textContent = `${flown} — analysed ${DETAIL.analysed}`;
   const chips = [`<span class="chip mono">${esc(DETAIL.id)}</span>`];
   if (DETAIL.drone) chips.push(`<span class="chip">Drone: ${esc(DETAIL.drone)}</span>`);
   if (DETAIL.reviewed) chips.push('<span class="chip" style="color:var(--green); border-color:var(--green-line);">Reviewed</span>');
@@ -807,6 +1001,34 @@ function draw() {
 
   drawPreview(); drawDetTable(); drawSummary(); drawSession();
 }
+
+/* Rename: a run's title is the operator's to set. Empty goes back to the name
+   built from capture time. */
+const renameForm = document.getElementById("d-rename-form");
+const renameInput = document.getElementById("d-rename-input");
+document.getElementById("d-rename").addEventListener("click", () => {
+  renameForm.style.display = "flex";
+  renameInput.value = DETAIL.title_custom ? DETAIL.title : "";
+  renameInput.placeholder = DETAIL.title || "";
+  renameInput.focus();
+});
+document.getElementById("d-rename-cancel").addEventListener("click", () => { renameForm.style.display = "none"; });
+renameInput.addEventListener("keydown", e => { if (e.key === "Escape") renameForm.style.display = "none"; });
+renameForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    const res = await api(`/api/scans/${encodeURIComponent(RUN_ID)}/title`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: renameInput.value }),
+    });
+    DETAIL.title = res.title; DETAIL.title_custom = res.title_custom;
+    renameForm.style.display = "none";
+    draw();
+    toast(res.title_custom ? "Run renamed." : "Name reset to the capture time.");
+  } catch (err) {
+    toast("Could not rename: " + err.message, 6000);
+  }
+});
 
 document.getElementById("view-toggle").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -924,12 +1146,53 @@ document.getElementById("filter-clear").addEventListener("click", () => {
   draw();
 });
 
+/* A draft left by a closed window, a crash or "Leave without saving" is offered
+   back - never applied silently, because the run may have been reviewed since. */
+function offerDraft() {
+  const draft = readDraft();
+  if (!draft || !draft.images || DETAIL.results_only) return;
+  const index = new Map(ALL_IMAGES.map((im, i) => [im.name, i]));
+  const usable = Object.entries(draft.images).filter(([name]) => index.has(name));
+  if (!usable.length) { clearDraft(); return; }
+  const when = new Date(draft.saved_at);
+  const bar = document.createElement("div");
+  bar.className = "card";
+  bar.style.cssText = "display:flex; align-items:center; gap:12px; padding:10px 16px; margin-bottom:14px;"
+    + "border-color:var(--amber); background:#fff8e6;";
+  bar.innerHTML = `<span style="font-size:13px; flex:1;">Unsaved review changes on <b>${usable.length}</b>
+      image${usable.length === 1 ? "" : "s"} from ${esc(when.toLocaleString())} were found on this computer.</span>
+    <button type="button" class="btn-quiet" data-a="discard">Discard</button>
+    <button type="button" class="btn btn-primary" data-a="restore">Restore and continue</button>`;
+  bar.addEventListener("click", async e => {
+    const b = e.target.closest("[data-a]");
+    if (!b) return;
+    if (b.dataset.a === "discard") {
+      if (!await wfConfirm("Discard the saved draft? This cannot be undone.",
+                           { ok: "Discard draft", cancel: "Keep it", danger: true })) return;
+      clearDraft(); bar.remove(); return;
+    }
+    if (IMAGE_FILTER.length && !FILTER_CLEARED) { FILTER_CLEARED = true; applyImageFilter(); }
+    for (const [name, boxes] of usable) {
+      boxesByImage[index.get(name)] = cloneBoxes(boxes);
+      TOUCHED.add(index.get(name));
+    }
+    DIRTY = true;
+    bar.remove();
+    setEdit(true);
+    updateDirtyNote();
+    toast("Draft restored - save to keep it.");
+  });
+  const grid = document.getElementById("filter-banner");
+  grid.parentNode.insertBefore(bar, grid);
+}
+
 api(`/api/scans/${encodeURIComponent(RUN_ID)}`)
   .then(d => {
     DETAIL = d;
     ALL_IMAGES = d.images_detail;
     applyImageFilter();
     draw();
+    offerDraft();
   })
   .catch(e => {
     document.getElementById("d-title").textContent = "Scan not found";
