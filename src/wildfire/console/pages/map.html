@@ -61,7 +61,7 @@
         <input type="radio" name="dlm-mode" value="scans" checked style="margin-top:3px;">
         <span>
           <span style="font-size:13px; font-weight:600;">Around my scanned area <span style="color:var(--green); font-weight:600;">(recommended)</span></span><br>
-          <span style="font-size:11px; color:var(--muted-2);">High detail (zoom 12–16) covering every GPS-tagged run, plus a margin</span>
+          <span style="font-size:11px; color:var(--muted-2);">High detail (zoom 12–16) covering every GPS-tagged scan, plus a margin</span>
         </span>
       </label>
       <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer; border:1px solid var(--border-2); border-radius:10px; padding:10px 12px;">
@@ -325,7 +325,7 @@ function dlmUpdate() {
   document.getElementById("dlm-custom").style.display = mode === "custom" ? "" : "none";
   const est = document.getElementById("dlm-estimate");
   const sel = dlmSelection();
-  if (mode === "scans" && !sel.bbox) { est.textContent = "no GPS-tagged runs yet"; return; }
+  if (mode === "scans" && !sel.bbox) { est.textContent = "no GPS-tagged scans yet"; return; }
   if (!sel.bbox) { est.textContent = "enter a valid rectangle"; return; }
   const n = tileCount(sel.bbox, sel.zmin, sel.zmax);
   est.textContent = `≈ ${n.toLocaleString()} tiles · ~${Math.round(n * 45 / 1024)} MB` +
@@ -380,7 +380,7 @@ function buildTimePick(md) {
   sel.innerHTML =
     `<option value="all">All time</option>` +
     years.map(y => `<option value="${y}">${y} — whole year</option>`).join("") +
-    months.map(m => `<option value="${m.key}">${monthLabel(m.key)} · ${m.points} img</option>`).join("");
+    months.map(m => `<option value="${m.key}">${monthLabel(m.key)} · ${plural(m.points, "image")}</option>`).join("");
   sel.value = md.month || "all";
 }
 

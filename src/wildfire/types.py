@@ -117,6 +117,9 @@ class ImageResult:
     annotated_path: Optional[str] = None
     density_path: Optional[str] = None  # grid density (hazard-count) map
     error: Optional[str] = None
+    # Centimetres of ground per pixel, from EXIF at detection time - what turns a
+    # box's pixels into metres for the operator. None when the EXIF cannot say.
+    gsd_cm: Optional[float] = None
 
     def to_dict(self, run_dir: Optional[Path] = None) -> dict:
         """`run_dir` stores the derived images relative to it - pass it whenever
@@ -137,6 +140,7 @@ class ImageResult:
             "annotated_path": rel(self.annotated_path),
             "density_path": rel(self.density_path),
             "error": self.error,
+            "gsd_cm": self.gsd_cm,
         }
 
     @classmethod
@@ -156,6 +160,7 @@ class ImageResult:
             annotated_path=absolute(d.get("annotated_path")),
             density_path=absolute(d.get("density_path")),
             error=d.get("error"),
+            gsd_cm=d.get("gsd_cm"),
         )
 
 

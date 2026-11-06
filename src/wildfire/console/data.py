@@ -30,8 +30,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from ..config import Settings
-from ..gps import capture_window, flown_labels
+from ..config import DETECTOR_GENERATION, Settings
+from ..gps import capture_window, flown_labels, ground_sample_distance_cm
 from ..gps import day_label as _day
 from ..types import run_absolute
 
@@ -279,8 +279,13 @@ def scan_summary(run_dir: Path, settings: Settings) -> Optional[dict]:
         "flown_time": flown_time,
         "flown_start": window[0].isoformat(timespec="seconds") if window else None,
         "analysed": f"{_day(ts)} \u00b7 {ts.strftime('%H:%M')}",
+        # Made by an older detector than this one: its counts are not comparable
+        # with new runs, and the severity thresholds no longer fit them.
+        "detector_stale": batch is not None and detector_generation(batch) < DETECTOR_GENERATION,
+        # Re-detection needs the operator's original photos, not our copies.
+        "can_redetect": any(Path(str(im.get("path") or "")).is_file() for im in images[:3]),
         "created": ts.isoformat(timespec="seconds"),
-        "date": ts.strftime("%b %d, %Y"),
+        "date": _day(ts),
         "time": ts.strftime("%H:%M"),
         "images": image_count,
         "detections_by_type": counts,
@@ -313,6 +318,19 @@ def discover_scans(settings: Settings) -> list[dict]:
             scans.append(s)
     scans.sort(key=lambda s: s["created"], reverse=True)
     return scans
+
+
+def _image_gsd(im: dict) -> Optional[float]:
+    """Ground resolution for one image: stored at detection time, or - for runs
+    made before it was stored - read from the source photo's EXIF if that photo
+    is still where it was. None means box sizes can only be given in pixels."""
+    stored = im.get("gsd_cm")
+    if stored:
+        return float(stored)
+    src = im.get("path")
+    if src and Path(src).is_file():
+        return ground_sample_distance_cm(src)
+    return None
 
 
 def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
@@ -365,6 +383,7 @@ def scan_detail(run_id: str, settings: Settings) -> Optional[dict]:
             "confirmed_annotated_url": _rel_url(str(conf_annot), root) if conf_annot.exists() else None,
             "confirmed_gridmap_url": _rel_url(str(conf_grid), root) if conf_grid.exists() else None,
             "error": im.get("error"),
+            "gsd_cm": _image_gsd(im),
         })
 
     # A run imported from the cloud carries findings but no imagery, so the page
@@ -628,6 +647,19 @@ def map_data(settings: Settings, radius_m: float = 40.0, month: str = "all") -> 
 
 
 # ------------------------------------------------------------------ dashboard
+def detector_generation(batch: dict) -> int:
+    """Which detector made a run (see config.DETECTOR_GENERATION).
+
+    Runs from before the field are read off what they contain: fallen trees
+    exist only from generation 2, so a run holding one was made by it.
+    """
+    stored = (batch.get("batch_info") or {}).get("detector_generation")
+    if stored is not None:
+        return int(stored)
+    counts = (batch.get("stats") or {}).get("detections_by_type") or {}
+    return 2 if counts.get("Fallen Tree") else 1
+
+
 def dashboard_summary(settings: Settings) -> dict:
     """Everything the dashboard page needs in one payload."""
     scans = discover_scans(settings)
@@ -660,6 +692,7 @@ def dashboard_summary(settings: Settings) -> dict:
     return {
         "total_scans": len(scans),
         "high_risk": sev_counts["high"],
+        "stale_scans": sum(1 for s in scans if s.get("detector_stale")),
         "flagged_scans": flagged,
         "last_scan": {"date": last["date"], "time": last["time"], "id": last["id"],
                       "title": last["title"], "analysed": last["analysed"],

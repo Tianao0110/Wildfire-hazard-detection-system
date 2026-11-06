@@ -555,10 +555,12 @@ function actionCell(s) {
   }
   if (s.status === "failed")
     return `<span class="mono" style="font-size:11px; color:var(--red);" title="${esc((s.job || {}).error || "")}">error</span>`;
+  // Every row has the same two slots, so "Open" lines up down the column; it
+  // used to shift left on rows without a report.
   const report = s.report_url
-    ? `<a style="font-size:12px; color:var(--muted-3);" href="${esc(s.report_url)}" target="_blank" rel="noopener" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration=''">Report</a>`
-    : "";
-  return `<a class="link-green" style="font-size:12px;" href="/scans/${encodeURIComponent(s.id)}">View Details</a>${report}`;
+    ? `<a class="act-pdf" href="${esc(s.report_url)}" target="_blank" rel="noopener">PDF</a>`
+    : `<span class="act-pdf none" title="No report yet - generate one from the scan">PDF</span>`;
+  return `<a class="link-green" style="font-size:12px;" href="/scans/${encodeURIComponent(s.id)}">Open</a>${report}`;
 }
 
 function drawTable() {
@@ -582,6 +584,7 @@ function drawTable() {
            title="${esc(s.flame_images ? `flame in ${s.flame_images} of ${s.images} images` : "worst image in this run")}">
         ${sevBadge(s.severity)}
         ${sevMixBar(s.severity_mix, s.images)}
+        ${staleChip(s)}
       </div>
       <span>${statusChip(s)}</span>
       <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">${actionCell(s)}</div>

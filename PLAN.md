@@ -767,6 +767,37 @@ Tier 1 of a UX review done as an operator on a 1366x768 laptop.
       August and November 2026 and flown on May 2, 2025
 - [x] Suite **203 -> 219**; the shortcut guard was checked against the old code
 
+## Batch 35 - read the evidence, not the pixels (2026-11-05)
+
+Tier 2 of the same UX review: the things that made the console look like a
+lab tool rather than something to hand a fire crew.
+
+- [x] **Boxes are a live layer, not paint.** The "annotated" view was a JPEG
+      with boxes and labels burned in, so dense frames were a wall of text and
+      nothing could be hidden. The viewer now draws an SVG over the original:
+      per-type show/hide chips, a labels toggle (off by default), strokes and
+      text that stay the same size at any zoom. It shows the verdict - the
+      confirmed boxes on a reviewed frame, proposals otherwise - so it can no
+      longer disagree with the list beside it
+- [x] **Sizes in metres, confidence in bands.** The list said "142 x 88 px" and
+      "100%". Each image now stores its ground resolution (`gsd_cm`, from EXIF
+      altitude and focal length) so a box reads "2.6 x 1.4 m"; confidence is
+      high / medium / low because the deadwood model saturates at 1.00
+- [x] **One vocabulary.** "image" not "photo/frame", "scan" not "run" on screen,
+      one date format (`fmtWhen`), and every table's action column the same
+      two slots (Open, PDF) so rows line up
+- [x] **Settings for an operator.** Detection thresholds, the ONNX model and
+      paths folded under *Advanced*; a sticky Save/Revert bar that appears with
+      unsaved changes, Ctrl/Cmd+S, and the leave guard
+- [x] **Old runs say they are old.** `batch_info.detector_generation`
+      (`config.DETECTOR_GENERATION`, now 2) marks which detector made a run;
+      runs from before the field are dated by content (fallen trees exist only
+      from gen 2). Six of the seven local runs are gen 1 and were graded High
+      on thresholds calibrated for gen 2. They carry an *Older detector* tag,
+      the Dashboard says how many of its High count they are, and *Re-detect*
+      runs the current detector over the same source photos as a new scan
+- [x] Suite **219 -> 232**
+
 ## Waiting on external conditions
 
 - [ ] **Plug in the trained dead_tree.onnx** (model still training on Azure; drop it

@@ -52,6 +52,17 @@ class ModelSource:
     class_map: dict = field(default_factory=dict)
 
 
+# Which generation of the detection pipeline produced a run, recorded in every
+# batch.json. BUMP IT when a change makes counts from older runs incomparable -
+# the severity thresholds are calibrated per generation, so an old run graded on
+# new thresholds reads as more (or less) severe than it is.
+#   1 - (runs without the field) crown model at native scale: ~70 "dead trees"
+#       per frame, median 0.9 m wide, no fallen trees
+#   2 - 2026-11-05: crown model at its training scale (~20 per frame), fallen
+#       trees from the deadwood model, flame/smoke confidence floors
+DETECTOR_GENERATION = 2
+
+
 def _default_model_sources() -> list[ModelSource]:
     return [
         ModelSource(

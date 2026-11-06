@@ -16,9 +16,12 @@ import cv2
 import numpy as np
 
 from .annotate import draw_boxes, grid_density_map
-from .config import Settings
+from .config import DETECTOR_GENERATION, Settings
 from .device import device_label, machine_name
-from .gps import extract_altitude, extract_camera, extract_timestamp, get_location, mrk_location
+from .gps import (
+    extract_altitude, extract_camera, extract_timestamp, get_location,
+    ground_sample_distance_cm, mrk_location,
+)
 from .imageio_utils import PASSTHROUGH_EXTS, load_rgb_uint8
 from .risk import batch_stats
 from .types import BatchResult, Detection, ImageResult
@@ -155,6 +158,7 @@ def process_image(
             detections=detections,
             gps=gps, altitude=altitude, timestamp=extract_timestamp(path),
             camera=extract_camera(path),
+            gsd_cm=ground_sample_distance_cm(path),
             flagged=bool(detections),
             orig_display_path=orig_path, annotated_path=annotated_path, density_path=density_path,
         )
@@ -195,6 +199,7 @@ def run_batch(
         "machine": machine_name(),
         "device": device_label(),
         "model_count": len(detectors),
+        "detector_generation": DETECTOR_GENERATION,
         "conf_threshold": settings.conf_threshold,
         "slice_size": settings.slice_size,
         "image_count": total,

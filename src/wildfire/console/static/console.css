@@ -147,6 +147,9 @@ button { font-family: inherit; }
                 background: color-mix(in srgb, var(--muted-3) 10%, transparent);
                 border: 1px solid color-mix(in srgb, var(--muted-3) 30%, transparent); }
 
+.badge.stale  { color: var(--text-2); background: transparent;
+                border: 1px dashed color-mix(in srgb, var(--text-2) 45%, transparent); }
+
 /* buttons */
 .btn {
   display: inline-flex; align-items: center; gap: 8px; border-radius: 9px;
@@ -433,3 +436,6 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 .run-title { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.run-title { color: var(--green); }
 .run-id { font: 400 10.5px var(--mono); color: var(--muted-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-pdf { font-size: 12px; color: var(--muted-2); width: 30px; text-align: right; }
+a.act-pdf:hover { text-decoration: underline; color: var(--text); }
+.act-pdf.none { color: var(--border-2); cursor: default; }
